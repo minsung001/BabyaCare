@@ -55,7 +55,7 @@ public class Menuactivity extends AppCompatActivity {
 
         // 그래프 클릭 -> grape 클래스 이동
         btnGraph.setOnClickListener(v -> {
-            startActivity(new Intent(Menuactivity.this, grape.class));
+            startActivity(new Intent(Menuactivity.this, GrapeActivity.class));
         });
 
         // 리포트 클릭 -> report 클래스 이동

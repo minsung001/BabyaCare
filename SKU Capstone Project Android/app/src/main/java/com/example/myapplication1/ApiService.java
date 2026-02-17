@@ -50,4 +50,8 @@ public interface ApiService {
 
     @PUT("/auth/update-profile")
     Call<AuthModels.UserResponse> updateProfile(@Body AuthModels.UpdateProfileRequest body);
+
+    // ApiService.java 예시
+    @GET("/api/sleep/data")
+    Call<List<AuthModels.SleepResponse>> getSleepData();
 }

@@ -100,4 +100,13 @@ public class AuthModels {
             this.babyBirth = babyBirth;
         }
     }
+    // 9. 아기 수면 및 환경 데이터 (시계열) 응답용 모델
+    // AuthModels.java 내부
+    public static class SleepResponse implements java.io.Serializable {
+        @SerializedName("time") public String time;
+        @SerializedName("temp") public float temp;
+        @SerializedName("score") public float score;
+        @SerializedName("status") public String status;
+        @SerializedName("isEmergency") public boolean isEmergency;
+    }
 }

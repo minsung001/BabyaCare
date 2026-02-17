@@ -15,10 +15,10 @@
         android:theme="@style/Theme.MyApplication1"
         android:usesCleartextTraffic="true">
         <activity
-            android:name=".ResetPasswordActivity"
+            android:name=".Grape"
             android:exported="false" />
         <activity
-            android:name=".VaccineAdapter"
+            android:name=".ResetPasswordActivity"
             android:exported="false" />
         <activity
             android:name=".policyDetail"

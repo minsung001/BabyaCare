@@ -18,6 +18,7 @@ app.use(express.urlencoded({ extended: true }));
 const authRouter = require('./src/routes/authRoutes');
 const policyRouter = require('./src/routes/policyRoutes'); 
 const vaccineRouter = require('./src/routes/vaccineRoutes'); // 3. 예방접종 라우터 추가
+const sleepRoutes = require('./src/routes/sleepRoutes'); 
 
 // 기존 인증 라우터
 app.use('/auth', authRouter);
@@ -28,12 +29,15 @@ app.use('/api/policies', policyRouter);
 // 4. 예방접종 스케줄 라우터 추가 (안드로이드에서 /api/vaccines 로 요청)
 app.use('/api/vaccines', vaccineRouter);
 
+//애기 수면 점수 
+app.use('/api/Sleep', sleepRoutes);
+
 // 기본 접속 테스트
 app.get('/', (req, res) => {
     res.send('Hello! Capstone Server is Running 🚀');
 });
 
-// DB 연결 후 서버 시작
+
 connectDB()
     .then(() => {
         app.listen(PORT, () => {
