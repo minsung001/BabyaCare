@@ -1,18 +1,17 @@
 package com.example.myapplication1;
 
 import com.google.gson.annotations.SerializedName;
+import java.util.List;
 
 public class AuthModels {
 
-    // 1. 이메일 인증번호 요청용 (email만 보냄)
+    // 1. 이메일 인증번호 요청용
     public static class VerifyRequest {
         String email;
-        public VerifyRequest(String email) {
-            this.email = email;
-        }
+        public VerifyRequest(String email) { this.email = email; }
     }
 
-    // 2. 인증번호 코드 확인용 (email과 code 보냄)
+    // 2. 인증번호 코드 확인용
     public static class CodeCheckRequest {
         String email;
         String code;
@@ -28,8 +27,6 @@ public class AuthModels {
         String username;
         String password;
         boolean consent;
-
-        // 아기 생년월일 ("YYYY-MM-DD")
         String babyBirth;
 
         public SignupRequest(String email, String username, String password, boolean consent, String babyBirth) {
@@ -60,7 +57,7 @@ public class AuthModels {
         @SerializedName("userId") public String userId;
     }
 
-    // 6. 복지 정책 데이터 응답용 모델
+    // 6. 복지 정책 데이터 응답용
     public static class PolicyResponse implements java.io.Serializable {
         @SerializedName("서비스명") public String title;
         @SerializedName("서비스요약") public String summary;
@@ -69,7 +66,7 @@ public class AuthModels {
         @SerializedName("서비스URL") public String url;
     }
 
-    // 7. 백신 스케줄 응답용 모델
+    // 7. 백신 스케줄 응답용
     public static class VaccineResponse implements java.io.Serializable {
         @SerializedName("name") public String name;
         @SerializedName("degree") public int degree;
@@ -78,11 +75,10 @@ public class AuthModels {
         @SerializedName("description") public String description;
     }
 
-    // 8. 비밀번호 재설정 요청용
+    // 8. 비밀번호 재설정 및 프로필 수정
     public static class ResetPasswordRequest {
         String email;
         String newPassword;
-
         public ResetPasswordRequest(String email, String newPassword) {
             this.email = email;
             this.newPassword = newPassword;
@@ -90,28 +86,53 @@ public class AuthModels {
     }
 
     public static class UpdateProfileRequest {
-        String email;     // 사용자 식별용 (변경 불가)
-        String username;  // 변경할 이름
-        String babyBirth; // 변경할 아기 생일 (yyyy-MM-dd)
-
+        String email;
+        String username;
+        String babyBirth;
         public UpdateProfileRequest(String email, String username, String babyBirth) {
             this.email = email;
             this.username = username;
             this.babyBirth = babyBirth;
         }
     }
-    // 9. 아기 수면 및 환경 데이터 (시계열) 응답용 모델
-    // AuthModels.java 내부
+
+    // 9. 아기 수면 및 환경 데이터
     public static class SleepResponse implements java.io.Serializable {
         @SerializedName("time") public String time;
         @SerializedName("temp") public float temp;
-
-        // 추가 권장 필드
-        @SerializedName("humidity") public float humidity; // 습도
-        @SerializedName("noise") public float noise;       // 소음
-
+        @SerializedName("humidity") public float humidity;
+        @SerializedName("noise") public float noise;
         @SerializedName("score") public float score;
         @SerializedName("status") public String status;
         @SerializedName("isEmergency") public boolean isEmergency;
+    }
+
+    // ============================================================
+    // 🚀 [SmartThings 연동 전용 신규 모델]
+    // ============================================================
+
+    // A. 토큰 등록 요청용 DTO
+    public static class STTokenRequest {
+        @SerializedName("email") public String email;
+        @SerializedName("token") public String token;
+
+        public STTokenRequest(String email, String token) {
+            this.email = email;
+            this.token = token;
+        }
+    }
+
+    // B. 기기 목록 응답 통합 DTO
+    public static class DeviceResponse {
+        @SerializedName("ok") public boolean ok;
+        @SerializedName("message") public String message;
+        @SerializedName("devices") public List<Device> devices; // 서버가 주는 기기 리스트
+    }
+
+    // C. 개별 기기 상세 정보
+    public static class Device {
+        @SerializedName("deviceId") public String deviceId;
+        @SerializedName("name") public String name;
+        @SerializedName("label") public String label; // 사용자가 앱에서 설정한 기기 별명
     }
 }

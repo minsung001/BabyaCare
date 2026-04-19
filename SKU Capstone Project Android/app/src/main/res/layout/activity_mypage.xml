@@ -14,7 +14,7 @@
             android:id="@+id/btn_back"
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:contentDescription="TODO"
+            android:contentDescription="뒤로가기"
             android:src="@drawable/outline_arrow_back_24"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -32,15 +32,64 @@
             app:layout_constraintStart_toEndOf="@id/btn_back"
             app:layout_constraintTop_toTopOf="@id/btn_back" />
 
-        <EditText android:id="@+id/et_edit_name" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="32dp" android:hint="이름" android:background="@drawable/bg_edittext_rounded" android:paddingStart="15dp" app:layout_constraintTop_toBottomOf="@id/tv_title" />
-        <EditText android:id="@+id/et_edit_baby_birth" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="12dp" android:hint="아기 생일 (YYYY-MM-DD)" android:focusable="false" android:background="@drawable/bg_edittext_rounded" android:paddingStart="15dp" app:layout_constraintTop_toBottomOf="@id/et_edit_name" />
+        <EditText
+            android:id="@+id/et_edit_name"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="32dp"
+            android:hint="이름"
+            android:background="@drawable/bg_edittext_rounded"
+            android:paddingStart="15dp"
+            app:layout_constraintTop_toBottomOf="@id/tv_title" />
 
-        <View android:id="@+id/divider1" android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="20dp" android:background="#EEEEEE" app:layout_constraintTop_toBottomOf="@id/et_edit_baby_birth" />
+        <EditText
+            android:id="@+id/et_edit_baby_birth"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="12dp"
+            android:hint="아기 생일 (YYYY-MM-DD)"
+            android:focusable="false"
+            android:background="@drawable/bg_edittext_rounded"
+            android:paddingStart="15dp"
+            app:layout_constraintTop_toBottomOf="@id/et_edit_name" />
 
-        <EditText android:id="@+id/et_current_pw" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="15dp" android:hint="현재 비밀번호 입력" android:inputType="textPassword" android:background="@drawable/bg_edittext_rounded" android:paddingStart="15dp" app:layout_constraintTop_toBottomOf="@id/divider1" />
-        <EditText android:id="@+id/et_edit_pw" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="12dp" android:hint="새 비밀번호" android:inputType="textPassword" android:background="@drawable/bg_edittext_rounded" android:paddingStart="15dp" app:layout_constraintTop_toBottomOf="@id/et_current_pw" />
+        <View
+            android:id="@+id/divider1"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="20dp"
+            android:background="#EEEEEE"
+            app:layout_constraintTop_toBottomOf="@id/et_edit_baby_birth" />
 
-        <View android:id="@+id/divider2" android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="25dp" android:background="#EEEEEE" app:layout_constraintTop_toBottomOf="@id/et_edit_pw" />
+        <EditText
+            android:id="@+id/et_current_pw"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="15dp"
+            android:hint="현재 비밀번호 입력"
+            android:inputType="textPassword"
+            android:background="@drawable/bg_edittext_rounded"
+            android:paddingStart="15dp"
+            app:layout_constraintTop_toBottomOf="@id/divider1" />
+
+        <EditText
+            android:id="@+id/et_edit_pw"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="12dp"
+            android:hint="새 비밀번호"
+            android:inputType="textPassword"
+            android:background="@drawable/bg_edittext_rounded"
+            android:paddingStart="15dp"
+            app:layout_constraintTop_toBottomOf="@id/et_current_pw" />
+
+        <View
+            android:id="@+id/divider2"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="25dp"
+            android:background="#EEEEEE"
+            app:layout_constraintTop_toBottomOf="@id/et_edit_pw" />
 
         <TextView
             android:id="@+id/label_guardian"
@@ -71,6 +120,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:orientation="vertical"
+            android:animateLayoutChanges="true"
             app:layout_constraintTop_toBottomOf="@id/label_guardian">
 
             <LinearLayout
@@ -80,19 +130,74 @@
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:padding="10dp">
+                <ImageView android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/human" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:text="추가된 보호자가 없습니다." android:textColor="#888888" android:textSize="14sp" />
+            </LinearLayout>
+        </LinearLayout>
 
-                <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:src="@drawable/human" />
+        <View
+            android:id="@+id/divider3"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="25dp"
+            android:background="#EEEEEE"
+            app:layout_constraintTop_toBottomOf="@id/layout_guardian_list" />
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:text="추가된 보호자가 없습니다."
-                    android:textColor="#888888"
-                    android:textSize="14sp" />
+        <TextView
+            android:id="@+id/label_smartthings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="SmartThings 기기 연동"
+            android:textStyle="bold"
+            android:textColor="#1A1A1A"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/divider3" />
+
+        <ImageButton
+            android:id="@+id/btn_add_smartthings"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:padding="2dp"
+            android:scaleType="fitCenter"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/plus"
+            app:layout_constraintBottom_toBottomOf="@id/label_smartthings"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/label_smartthings" />
+
+        <TextView
+            android:id="@+id/tv_smartthings_desc"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="삼성 개인 액세스 토큰(PAT)을 통해 기기를 연동하세요."
+            android:textColor="#888888"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/label_smartthings" />
+
+        <LinearLayout
+            android:id="@+id/layout_device_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:animateLayoutChanges="true"
+            app:layout_constraintTop_toBottomOf="@id/tv_smartthings_desc">
+
+            <LinearLayout
+                android:id="@+id/item_empty_device"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="15dp"
+                android:background="@drawable/bg_edittext_rounded"
+                android:backgroundTint="#F8F9FA">
+                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@android:drawable/ic_menu_info_details" app:tint="#888888" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:text="연동된 스마트 기기가 없습니다." android:textColor="#888888" android:textSize="13sp" />
             </LinearLayout>
         </LinearLayout>
 
@@ -101,9 +206,12 @@
             android:layout_width="match_parent"
             android:layout_height="55dp"
             android:layout_marginTop="40dp"
+            android:layout_marginBottom="20dp"
             android:text="모든 변경사항 저장"
             android:backgroundTint="#1F2246"
-            app:layout_constraintTop_toBottomOf="@id/layout_guardian_list"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            app:layout_constraintTop_toBottomOf="@id/layout_device_list"
             app:layout_constraintBottom_toBottomOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
