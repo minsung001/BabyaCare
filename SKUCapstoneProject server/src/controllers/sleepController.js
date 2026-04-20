@@ -4,55 +4,67 @@ const Sleep = require('../models/Sleep');
 // 전역 변수로 모델 관리
 let sleepModel = null;
 
-// [Step 1] 논문 근거 가공 데이터 생성 (Seed Data)
+// [Step 1] 센서 및 AI 분석값 기반 가공 데이터 생성 (Seed Data)
 exports.seedMLData = async (req, res) => {
     try {
         const dummyData = [];
         for (let i = 0; i < 200; i++) {
-            // 물리적 환경 데이터 생성
+            // 1. 물리적 센서 데이터 생성
             const temp = 18 + Math.random() * 12;      // 18~30도
             const noise = 20 + Math.random() * 50;     // 20~70dB
             const humidity = 30 + Math.random() * 50;  // 30~80%
-            // 논문 근거 수면 시간 (만 3~5세 권장 10~12시간 반영) [cite: 115, 235]
-            const sleepDuration = 7 + Math.random() * 6; // 7~13시간
+            
+            // 2. AI 울음 감지 데이터 (팀원 로직 반영)
+            const isCrying = Math.random() > 0.85 ? 1 : 0;
 
-            // 논문 및 이론적 배경 근거 수면 점수 산출 로직
+            // [가중치 재설정] 수면 시간 제외, 환경 및 상태 기반 100점 만점
             let score = 100;
             
-            // 1. 온도: 한국 유아 적정 온도 약 23도 기준 감점 [cite: 183]
-            score -= Math.abs(temp - 23) * 5; 
-            // 2. 소음: 50dB 초과 시 수면 방해 요인으로 감점 [cite: 231]
-            score -= (noise > 50 ? (noise - 50) * 2 : 0);
-            // 3. 습도: 적정 습도 50% 기준 감점 [cite: 183]
-            score -= Math.abs(humidity - 50) * 0.5;
-            // 4. 수면 시간: 권장 11시간 미달 시 시간당 큰 폭 감점 [cite: 115, 219]
-            if (sleepDuration < 11) {
-                score -= (11 - sleepDuration) * 12; 
+            // ① 온도 가중치 (중요도: 상): 적정 온도 23도 기준, 1도당 6점 감점
+            score -= Math.abs(temp - 23) * 6; 
+            
+            // ② 울음 가중치 (중요도: 최상): 울음 발생 시 즉시 45점 감점
+            if (isCrying === 1) {
+                score -= 45; 
+            } else {
+                // ③ 일반 소음 가중치 (중요도: 중): 50dB 초과 시 감점
+                score -= (noise > 50 ? (noise - 50) * 2 : 0);
             }
 
+            // ④ 습도 가중치 (중요도: 하): 적정 습도 50% 기준, 1%당 0.5점 감점
+            score -= Math.abs(humidity - 50) * 0.5;
+
             dummyData.push({
-                temp, noise, humidity, sleepDuration,
-                actualScore: Math.max(0, Math.min(100, score)),
+                temp, 
+                noise, 
+                humidity, 
+                isCrying, 
+                actualScore: Math.max(0, Math.min(100, score)), // 0~100점 사이로 제한
                 time: `${Math.floor(Math.random()*24)}:00`
             });
         }
         await Sleep.deleteMany({ actualScore: { $exists: true } });
         await Sleep.insertMany(dummyData);
-        res.json({ message: "온도·습도·소음·수면시간 기반 학습 데이터 생성 완료" });
+        res.json({ message: "수면 시간을 제외한 환경/상태 기반 학습 데이터 생성 완료" });
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
-// [Step 2] 모델 학습 함수
+// [Step 2] 모델 학습 함수 (특성 수: 4개로 조정)
 const trainSleepModel = async () => {
     const data = await Sleep.find({ actualScore: { $exists: true } });
     if (data.length < 50) return null;
 
-    // 입력 특성: [온도, 습도, 소음, 수면시간]
-    const X = data.map(d => [d.temp, d.humidity, d.noise, d.sleepDuration]);
+    // 입력 특성: [온도, 습도, 소음, 울음여부]
+    const X = data.map(d => [
+        d.temp, 
+        d.humidity, 
+        d.noise, 
+        d.isCrying || 0
+    ]);
     const y = data.map(d => d.actualScore);
     
     sleepModel = new MLR(X, y);
-    console.log("✅ 4대 핵심 지표 수면 모델 학습 완료");
+    console.log("✅ 환경 및 울음 지표 기반 수면 모델 학습 완료");
 };
 
 // [Step 3] 실시간 데이터 분석 및 예측
@@ -65,12 +77,12 @@ exports.getSleepAnalysis = async (req, res) => {
         const analyzed = recentRecords.map(curr => {
             let predicted = 80; 
             if (sleepModel) {
-                // 현재 센서 값과 사용자 입력 수면 시간을 기반으로 예측
+                // 예측 시에도 수면 시간 제외
                 predicted = sleepModel.predict([
                     curr.temp, 
                     curr.humidity || 50, 
                     curr.noise || 30,
-                    curr.userSleepDuration || 11 // 입력 없을 시 권장 시간 기본값 적용
+                    curr.isCrying || 0
                 ]);
             }
 
@@ -92,16 +104,19 @@ exports.getReportPayload = async (req, res) => {
         createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
     });
 
+    if (last24h.length === 0) return res.status(404).json({ message: "분석할 데이터가 없습니다." });
+
     const reportData = {
         avgTemp: (last24h.reduce((a, b) => a + b.temp, 0) / last24h.length).toFixed(1),
         avgHumidity: (last24h.reduce((a, b) => a + b.humidity, 0) / last24h.length).toFixed(1),
         maxNoise: Math.max(...last24h.map(d => d.noise)),
-        avgSleepDuration: (last24h.reduce((a, b) => a + (b.userSleepDuration || 0), 0) / last24h.length).toFixed(1),
-        totalRecords: last24h.length
+        cryCount: last24h.filter(d => d.isCrying === 1).length
     };
 
     res.json({
-        prompt: `소아과 전문가의 관점에서 다음 수면 데이터를 분석해 주세요. 특히 온도(${reportData.avgTemp}도)와 수면 시간(${reportData.avgSleepDuration}시간)이 유아의 수면 질에 미치는 영향을 중심으로 리포트를 작성해 주세요.`,
+        prompt: `소아과 전문가 관점에서 아기의 수면 환경 리포트를 작성해 주세요. 
+        분석 데이터: 평균 온도 ${reportData.avgTemp}도, 평균 습도 ${reportData.avgHumidity}%, 최대 소음 ${reportData.maxNoise}dB, 울음 감지 ${reportData.cryCount}회.
+        환경 개선점과 수면 질에 대한 종합 의견을 주되, 전문적이면서 친절한 말투로 작성해 주세요.`,
         data: reportData
     });
 };
