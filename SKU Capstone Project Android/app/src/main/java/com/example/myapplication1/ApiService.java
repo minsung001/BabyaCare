@@ -46,8 +46,17 @@ public interface ApiService {
     @GET("/api/policies")
     Call<List<AuthModels.PolicyResponse>> getPolicies();
 
+    // 📅 백신 스케줄 조회
     @GET("/api/vaccines/schedule/{userId}")
     Call<List<AuthModels.VaccineResponse>> getVaccineSchedule(@Path("userId") String userId);
+
+    // ✨ [추가] 백신 일정 수정 (PUT 방식)
+    // vaccineId를 경로로 받고, 수정할 데이터를 VaccineUpdate 객체에 담아 보냅니다.
+    @PUT("/api/vaccines/update/{vaccineId}")
+    Call<Void> updateVaccine(
+            @Path("vaccineId") String vaccineId,
+            @Body AuthModels.VaccineUpdate request
+    );
 
     @GET("/api/sleep/data")
     Call<List<AuthModels.SleepResponse>> getSleepData();
@@ -55,15 +64,12 @@ public interface ApiService {
 
     // === 3. SmartThings 연동 관련 (IoT) ===
 
-    // 🚀 SmartThings 토큰 등록 (헤더에 우리 서버 JWT 필수!)
-    // SmartThings 토큰 등록 (JWT 헤더 필수)
     @POST("/api/smartthings/register")
     Call<AuthModels.DeviceResponse> registerSTToken(
             @Header("Authorization") String jwtToken,
             @Body AuthModels.STTokenRequest request
     );
 
-    // 등록된 기기 목록 가져오기 (JWT 헤더 필수)
     @GET("/api/smartthings/devices")
     Call<AuthModels.DeviceResponse> getRegisteredDevices(
             @Header("Authorization") String jwtToken,

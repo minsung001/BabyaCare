@@ -66,13 +66,23 @@ public class AuthModels {
         @SerializedName("서비스URL") public String url;
     }
 
-    // 7. 백신 스케줄 응답용
+    // 7. 백신 스케줄 응답 및 수정용
     public static class VaccineResponse implements java.io.Serializable {
+        @SerializedName("_id") public String id;  // ✨ 추가: 서버 DB의 고유 ID (수정 시 필수)
         @SerializedName("name") public String name;
         @SerializedName("degree") public int degree;
         @SerializedName("dueDate") public String dueDate;
         @SerializedName("dDay") public int dDay;
         @SerializedName("description") public String description;
+    }
+
+    // ✨ [추가] 백신 일정 수정 요청용 DTO
+    public static class VaccineUpdate {
+        @SerializedName("dueDate") public String dueDate;
+
+        public VaccineUpdate(String dueDate) {
+            this.dueDate = dueDate;
+        }
     }
 
     // 8. 비밀번호 재설정 및 프로필 수정
@@ -126,13 +136,13 @@ public class AuthModels {
     public static class DeviceResponse {
         @SerializedName("ok") public boolean ok;
         @SerializedName("message") public String message;
-        @SerializedName("devices") public List<Device> devices; // 서버가 주는 기기 리스트
+        @SerializedName("devices") public List<Device> devices;
     }
 
     // C. 개별 기기 상세 정보
     public static class Device {
         @SerializedName("deviceId") public String deviceId;
         @SerializedName("name") public String name;
-        @SerializedName("label") public String label; // 사용자가 앱에서 설정한 기기 별명
+        @SerializedName("label") public String label;
     }
 }

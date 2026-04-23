@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>베이비 모니터링 시스템</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.js"></script>
+
+    <style>
+
+        body { background-color: #1e1e1e; color: white; text-align: center; font-family: sans-serif; }
+
+        video { background: black; border: 2px solid #444; margin-top: 20px; }
+
+        /* 버튼 디자인 */
+
+        #startBtn {
+
+            margin-top: 20px;
+
+            padding: 10px 20px;
+
+            font-size: 18px;
+
+            cursor: pointer;
+
+            background-color: #4CAF50;
+
+            color: white;
+
+            border: none;
+
+            border-radius: 5px;
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <h2>👶 실시간 베이비 모니터링</h2>
+
+    <button id="startBtn">모니터링 시작 (소리 켜짐)</button>
+
+    <br>
+
+    <video id="videoElement" width="1280" height="720" controls></video>
+
+
+
+    <script>
+
+        if (mpegts.getFeatureList().mseLivePlayback) {
+
+            var videoElement = document.getElementById('videoElement');
+
+            var startBtn = document.getElementById('startBtn');
+
+            var player = null;
+
+
+
+            function startPlayer() {
+
+                if (player !== null) {
+
+                    player.pause();
+
+                    player.unload();
+
+                    player.detachMediaElement();
+
+                    player.destroy();
+
+                    player = null;
+
+                }
+
+
+
+                player = mpegts.createPlayer({
+
+                    type: 'mpegts',
+
+                    isLive: true,
+
+                    url: 'ws://localhost:3000'
+
+                }, {
+
+                    enableStashBuffer: true,
+
+                    stashInitialSize: 800           // 30fps는 데이터가 빨리 쌓이므로 조금 넉넉히
+
+                });
+
+
+
+                // 스트리밍 끊김 감지 시 자동 복구
+
+                player.on(mpegts.Events.ERROR, function(errorType, errorDetail, errorInfo) {
+
+                    console.log("스트리밍 끊김 감지! 1초 뒤 자동 복구합니다.");
+
+                    setTimeout(startPlayer, 1000);
+
+                });
+
+
+
+                player.attachMediaElement(videoElement);
+
+                player.load();
+
+                player.play();
+
+                syncInterval = setInterval(() => {
+                    if (player && videoElement.buffered.length > 0) {
+                        const end = videoElement.buffered.end(0); // 수신된 데이터의 끝
+                        const current = videoElement.currentTime; // 현재 재생 시점
+                        const diff = end - current;
+
+                        // 1.5초 이상 밀리면 최신 지점으로 강제 점프
+                        if (diff > 1.5) {
+                            console.log(`지연 발생(${diff.toFixed(2)}s): 최신 화면으로 점프!`);
+                            videoElement.currentTime = end - 0.1;
+                        }
+                    }
+                }, 1000);
+
+            }
+
+
+
+            // 버튼 클릭 시 재생 시작 및 버튼 숨기기
+
+            startBtn.addEventListener('click', function() {
+
+                startPlayer();
+
+                startBtn.style.display = 'none';
+
+            });
+
+           
+
+        } else {
+
+            alert('이 브라우저는 실시간 스트리밍을 지원하지 않습니다.');
+
+        }
+
+    </script>
+
+</body>
+
+</html>
