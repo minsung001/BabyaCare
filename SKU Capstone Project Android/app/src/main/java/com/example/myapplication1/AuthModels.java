@@ -66,9 +66,9 @@ public class AuthModels {
         @SerializedName("서비스URL") public String url;
     }
 
-    // 7. 백신 스케줄 응답 및 수정용
+    // 7. 백신 스케줄 응답용
     public static class VaccineResponse implements java.io.Serializable {
-        @SerializedName("_id") public String id;  // ✨ 추가: 서버 DB의 고유 ID (수정 시 필수)
+        @SerializedName("_id") public String id;
         @SerializedName("name") public String name;
         @SerializedName("degree") public int degree;
         @SerializedName("dueDate") public String dueDate;
@@ -76,16 +76,15 @@ public class AuthModels {
         @SerializedName("description") public String description;
     }
 
-    // ✨ [추가] 백신 일정 수정 요청용 DTO
+    // 백신 일정 수정 요청용
     public static class VaccineUpdate {
         @SerializedName("dueDate") public String dueDate;
-
         public VaccineUpdate(String dueDate) {
             this.dueDate = dueDate;
         }
     }
 
-    // 8. 비밀번호 재설정 및 프로필 수정
+    // 8. 비밀번호 재설정
     public static class ResetPasswordRequest {
         String email;
         String newPassword;
@@ -95,17 +94,24 @@ public class AuthModels {
         }
     }
 
+    // AuthModels.java 내부의 UpdateProfileRequest 클래스 수정
+    // AuthModels.java 내부의 UpdateProfileRequest 클래스 수정
     public static class UpdateProfileRequest {
-        String email;
-        String username;
-        String babyBirth;
-        public UpdateProfileRequest(String email, String username, String babyBirth) {
-            this.email = email;
+        public String username;      // 로그인 아이디
+        public String name;          // 표시 이름
+        public String babyBirth;
+        public String currentPassword;
+        public String newPassword;
+
+        public UpdateProfileRequest(String username, String name, String babyBirth,
+                                    String currentPassword, String newPassword) {
             this.username = username;
+            this.name = name;
             this.babyBirth = babyBirth;
+            this.currentPassword = currentPassword;
+            this.newPassword = newPassword;
         }
     }
-
     // 9. 아기 수면 및 환경 데이터
     public static class SleepResponse implements java.io.Serializable {
         @SerializedName("time") public String time;
@@ -118,10 +124,9 @@ public class AuthModels {
     }
 
     // ============================================================
-    // 🚀 [SmartThings 연동 전용 신규 모델]
+    // 📡 SmartThings 연동 모델
     // ============================================================
 
-    // A. 토큰 등록 요청용 DTO
     public static class STTokenRequest {
         @SerializedName("email") public String email;
         @SerializedName("token") public String token;
@@ -132,14 +137,12 @@ public class AuthModels {
         }
     }
 
-    // B. 기기 목록 응답 통합 DTO
     public static class DeviceResponse {
         @SerializedName("ok") public boolean ok;
         @SerializedName("message") public String message;
         @SerializedName("devices") public List<Device> devices;
     }
 
-    // C. 개별 기기 상세 정보
     public static class Device {
         @SerializedName("deviceId") public String deviceId;
         @SerializedName("name") public String name;

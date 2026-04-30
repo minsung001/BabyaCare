@@ -3,7 +3,7 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const dgram = require('dgram');
-const axios = require('axios'); // 1. axios를 상단으로 이동
+const axios = require('axios');
 
 // DB 연결
 const { connectDB } = require('./src/db');
@@ -14,10 +14,22 @@ const wss = new WebSocket.Server({ server });
 
 app.set('wss', wss);
 
-const PORT = process.env.PORT || 3001; // 민성님 서버 포트 (3001)
+const PORT = process.env.PORT || 3001;
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// ==========================================
+// ✅ 요청 로그 확인용 코드
+// ==========================================
+app.use((req, res, next) => {
+    console.log("==============================================");
+    console.log("📥 요청 들어옴:", req.method, req.originalUrl);
+    console.log("📦 body:", req.body);
+    console.log("🔍 query:", req.query);
+    console.log("==============================================");
+    next();
+});
 
 // ==========================================
 // 라우터 설정
@@ -29,7 +41,7 @@ const sleepRoutes = require('./src/routes/sleepRoutes');
 const smartThingsRouter = require('./src/routes/smartThingsRoutes');
 const videoRoutes = require('./src/routes/videoRoutes');
 const soundAnalysisRoutes = require('./src/routes/soundAnalysisRoutes');
-const aiRouter = require('./src/routes/airouter'); 
+const aiRouter = require('./src/routes/airouter');
 
 app.use('/auth', authRouter);
 app.use('/api/policies', policyRouter);
@@ -38,25 +50,23 @@ app.use('/api/Sleep', sleepRoutes);
 app.use('/api/SmartThings', smartThingsRouter);
 app.use('/api/video', videoRoutes);
 app.use('/api/sound-analysis', soundAnalysisRoutes);
-app.use('/api/ai', aiRouter); 
+app.use('/api/ai', aiRouter);
 
 // ==========================================
-// 🧪 [TEST] Flask 서버 통신 테스트 라우트
+// 🧪 Flask 서버 통신 테스트 라우트
 // ==========================================
 app.get('/api/test-ai-bridge', async (req, res) => {
     console.log("🧪 [Test] Flask 서버로 통신 테스트 시작...");
-    
+
     const dummyData = {
-        image: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", 
+        image: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
         camera_id: "test_camera_001"
     };
 
     try {
-        // Flask 서버(5000번) 상태 확인
         const health = await axios.get('http://127.0.0.1:5000/health');
         console.log("✅ 1. Flask Health Check:", health.data.status);
 
-        // Flask 서버 비디오 분석 호출
         const aiRes = await axios.post('http://127.0.0.1:5000/api/video/analyze', dummyData);
         console.log("✅ 2. Flask AI 응답 성공:", aiRes.data);
 
@@ -69,7 +79,7 @@ app.get('/api/test-ai-bridge', async (req, res) => {
         console.error("❌ [Test] 통신 실패:", error.message);
         res.status(500).json({
             success: false,
-            message: "Flask 서버와 통신 불가 (서버가 켜져있는지 확인하세요)",
+            message: "Flask 서버와 통신 불가",
             error: error.message
         });
     }
@@ -101,10 +111,15 @@ udpServer.bind(8888, () => {
 });
 
 // ==========================================
+// 기본 라우트
+// ==========================================
+app.get('/', (req, res) => {
+    res.send('🚀 Capstone AI Server Running');
+});
+
+// ==========================================
 // 서버 실행
 // ==========================================
-app.get('/', (req, res) => res.send('🚀 Capstone AI Server Running'));
-
 connectDB()
     .then(() => {
         server.listen(PORT, () => {

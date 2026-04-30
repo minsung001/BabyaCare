@@ -21,12 +21,9 @@ public class mypage extends AppCompatActivity {
     private ApiService apiService;
     private EditText etEditName, etBabyBirth, etCurrentPw, etEditPw;
     private Button btnSaveAll;
-
-    // SmartThings 뷰
     private ImageButton btnAddSmartThings;
     private LinearLayout itemEmptyDevice, layoutDeviceList;
 
-    // 세션 정보
     private String loginUserEmail;
     private String jwtToken;
 
@@ -35,44 +32,35 @@ public class mypage extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_mypage);
 
-        loadUserInfo(); // 1. 신분증 로드
-        initViews();    // 2. 뷰 초기화
-        setupListeners(); // 3. 클릭 리스너
-        loadRegisteredDevices(); // 4. 기존 기기 로드
+        loadUserInfo();
+        initViews();
+        setupListeners();
+        loadRegisteredDevices();
     }
 
     private void loadUserInfo() {
         SharedPreferences sharedPref = getSharedPreferences("UserPrefs", MODE_PRIVATE);
         String token = sharedPref.getString("accessToken", "");
-        loginUserEmail = sharedPref.getString("userEmail", "minsung@example.com");
-
-        // 서버 verifyToken 통과용 "Bearer " 필수
+        loginUserEmail = sharedPref.getString("userEmail", "");
         this.jwtToken = "Bearer " + token;
-        Log.d("SmartThings", "로그인 세션 확인: " + loginUserEmail);
+
+        Log.d("JWT_CHECK", "accessToken = " + token);
+        Log.d("JWT_CHECK", "jwtToken = " + jwtToken);
+        Log.d("JWT_CHECK", "userEmail = " + loginUserEmail);
     }
 
     private void initViews() {
         apiService = RetrofitClient.getApiService();
-
         etEditName = findViewById(R.id.et_edit_name);
         etBabyBirth = findViewById(R.id.et_edit_baby_birth);
         etCurrentPw = findViewById(R.id.et_current_pw);
         etEditPw = findViewById(R.id.et_edit_pw);
         btnSaveAll = findViewById(R.id.btn_save_all);
-
         btnAddSmartThings = findViewById(R.id.btn_add_smartthings);
         itemEmptyDevice = findViewById(R.id.item_empty_device);
         layoutDeviceList = findViewById(R.id.layout_device_list);
 
         findViewById(R.id.btn_back).setOnClickListener(v -> finish());
-
-        findViewById(R.id.btn_add_guardian).setOnClickListener(v -> {
-            EditText et = new EditText(this);
-            et.setHint("초대할 ID 입력");
-            new AlertDialog.Builder(this).setTitle("보호자 초대").setView(et)
-                    .setPositiveButton("초대", (dialog, which) -> Toast.makeText(this, "초대를 보냈습니다.", Toast.LENGTH_SHORT).show())
-                    .setNegativeButton("취소", null).show();
-        });
     }
 
     private void setupListeners() {
@@ -87,6 +75,44 @@ public class mypage extends AppCompatActivity {
         btnSaveAll.setOnClickListener(v -> updateProfileProcess());
     }
 
+    private void updateProfileProcess() {
+        String newName = etEditName.getText().toString();
+        String babyBirth = etBabyBirth.getText().toString();
+        String currentPw = etCurrentPw.getText().toString();
+        String newPw = etEditPw.getText().toString();
+
+        if (!newPw.isEmpty() && newPw.length() < 13) {
+            Toast.makeText(this, "비밀번호는 13자리 이상이어야 합니다!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // 🔥 핵심: username = 아이디 / name = 표시이름
+        AuthModels.UpdateProfileRequest request = new AuthModels.UpdateProfileRequest(
+                loginUserEmail,  // ← 여기에 "test2" 같은 아이디 들어있음
+                newName,         // ← roh (표시 이름)
+                babyBirth,
+                currentPw,
+                newPw
+        );
+
+        apiService.updateProfile(request).enqueue(new Callback<AuthModels.UserResponse>() {
+            @Override
+            public void onResponse(Call<AuthModels.UserResponse> call, Response<AuthModels.UserResponse> response) {
+                if (response.isSuccessful()) {
+                    Toast.makeText(mypage.this, "수정 성공!", Toast.LENGTH_SHORT).show();
+                    finish();
+                } else {
+                    Toast.makeText(mypage.this, "수정 실패: 정보를 확인하세요.", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<AuthModels.UserResponse> call, Throwable t) {
+                Toast.makeText(mypage.this, "서버 연결 오류", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
     private void loadRegisteredDevices() {
         apiService.getRegisteredDevices(jwtToken, loginUserEmail).enqueue(new Callback<AuthModels.DeviceResponse>() {
             @Override
@@ -95,69 +121,80 @@ public class mypage extends AppCompatActivity {
                     displayDevices(response.body().devices);
                 }
             }
-            @Override public void onFailure(Call<AuthModels.DeviceResponse> call, Throwable t) {
-                Log.e("SmartThings", "로드 실패: " + t.getMessage());
-            }
+            @Override public void onFailure(Call<AuthModels.DeviceResponse> call, Throwable t) {}
         });
     }
 
     private void showSmartThingsRegistrationDialog() {
         final EditText etToken = new EditText(this);
-        etToken.setHint("삼성 개발자 센터에서 발급받은 PAT 입력");
-        new AlertDialog.Builder(this).setTitle("SmartThings 기기 연동").setView(etToken)
+        etToken.setHint("PAT 입력");
+        new AlertDialog.Builder(this).setTitle("SmartThings 연동").setView(etToken)
                 .setPositiveButton("연동", (dialog, which) -> sendTokenToServer(etToken.getText().toString().trim())).show();
     }
 
     private void sendTokenToServer(String token) {
-        if (token.isEmpty()) return;
-        AuthModels.STTokenRequest request = new AuthModels.STTokenRequest(loginUserEmail, token);
-        apiService.registerSTToken(jwtToken, request).enqueue(new Callback<AuthModels.DeviceResponse>() {
-            @Override
-            public void onResponse(Call<AuthModels.DeviceResponse> call, Response<AuthModels.DeviceResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    displayDevices(response.body().devices);
-                    Toast.makeText(mypage.this, "기기 연동 성공!", Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(mypage.this, "연동 실패 (인증 확인 필요)", Toast.LENGTH_SHORT).show();
-                }
-            }
-            @Override public void onFailure(Call<AuthModels.DeviceResponse> call, Throwable t) {}
-        });
+        if (token == null || token.trim().isEmpty()) {
+            Toast.makeText(this, "토큰을 입력하세요.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Log.d("ST_DEBUG", "loginUserEmail = " + loginUserEmail);
+        Log.d("ST_DEBUG", "jwtToken = " + jwtToken);
+        Log.d("ST_DEBUG", "token = " + token.trim());
+
+        AuthModels.STTokenRequest request =
+                new AuthModels.STTokenRequest(loginUserEmail, token.trim());
+
+        apiService.registerSTToken(jwtToken, request)
+                .enqueue(new Callback<AuthModels.DeviceResponse>() {
+                    @Override
+                    public void onResponse(Call<AuthModels.DeviceResponse> call,
+                                           Response<AuthModels.DeviceResponse> response) {
+
+                        Log.d("ST_DEBUG", "response code = " + response.code());
+
+                        if (response.isSuccessful() && response.body() != null) {
+                            displayDevices(response.body().devices);
+                            Toast.makeText(mypage.this, "연동 성공!", Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(
+                                    mypage.this,
+                                    "연동 실패: " + response.code(),
+                                    Toast.LENGTH_LONG
+                            ).show();
+
+                            try {
+                                if (response.errorBody() != null) {
+                                    Log.e("ST_ERROR", "errorBody = " + response.errorBody().string());
+                                }
+                            } catch (Exception e) {
+                                Log.e("ST_ERROR", "errorBody 읽기 실패", e);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<AuthModels.DeviceResponse> call, Throwable t) {
+                        Toast.makeText(mypage.this, "서버 연결 오류", Toast.LENGTH_SHORT).show();
+                        Log.e("ST_ERROR", "onFailure = " + t.getMessage(), t);
+                    }
+                });
     }
 
-    // 🚀 [핵심] 리소스 새로 안 만들고 기존 bg_edittext_rounded를 재활용해서 예쁘게 출력
     private void displayDevices(List<AuthModels.Device> devices) {
         if (devices == null || devices.isEmpty()) {
             itemEmptyDevice.setVisibility(View.VISIBLE);
             layoutDeviceList.removeAllViews();
             return;
         }
-
         itemEmptyDevice.setVisibility(View.GONE);
         layoutDeviceList.removeAllViews();
-
         for (AuthModels.Device device : devices) {
             TextView tv = new TextView(this);
-            tv.setText("✔  " + (device.label != null ? device.label : device.name));
-            tv.setTextSize(14f);
-            tv.setTextColor(Color.parseColor("#1A1A1A"));
+            tv.setText("✔ " + (device.label != null ? device.label : device.name));
             tv.setPadding(45, 40, 45, 40);
-
-            // 기존 입력창 배경 재사용
             tv.setBackgroundResource(R.drawable.bg_edittext_rounded);
-            tv.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#F8F9FA")));
-
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            params.setMargins(0, 0, 0, 15);
-            tv.setLayoutParams(params);
-
             layoutDeviceList.addView(tv);
         }
-    }
-
-    private void updateProfileProcess() {
-        // 기존 프로필 수정 로직 유지
-        Toast.makeText(this, "개인정보 수정 기능은 기존 서버 API를 사용합니다.", Toast.LENGTH_SHORT).show();
     }
 }

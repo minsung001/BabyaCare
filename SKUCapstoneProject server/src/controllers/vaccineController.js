@@ -1,39 +1,52 @@
 const Vaccine = require('../models/Vaccine');
 const User = require('../models/User');
-const dayjs = require('dayjs'); // 날짜 계산용
+const dayjs = require('dayjs');
 
 exports.getVaccineSchedule = async (req, res) => {
     try {
         const { userId } = req.params;
 
-        // 1. 유저 정보에서 아이 생년월일 가져오기
-        const user = await User.findById(userId);
-        if (!user || !user.babyBirthDate) {
+        console.log("백신 스케줄 요청 userId:", userId);
+
+        const user = await User.findOne({ username: userId });
+
+        console.log("찾은 유저:", user);
+
+        const birthDate = user?.babyBirth || user?.babyBirthDate;
+
+        if (!user || !birthDate) {
             return res.status(404).json({ message: "아이의 생년월일 정보가 없습니다." });
         }
 
-        // 2. 마스터 백신 데이터 가져오기
         const vaccines = await Vaccine.find();
 
-        // 3. 개인별 맞춤 날짜 계산
+        console.log("백신 데이터 개수:", vaccines.length);
+
+        if (vaccines.length === 0) {
+            return res.status(200).json([]);
+        }
+
         const schedule = vaccines.map(v => {
-            const birth = dayjs(user.babyBirthDate);
+            const birth = dayjs(birthDate);
             const dueDate = birth.add(v.recommendedDays, 'day');
-            
+
             return {
+                id: v._id,
                 name: v.name,
                 degree: v.degree,
                 dueDate: dueDate.format('YYYY-MM-DD'),
-                dDay: dueDate.diff(dayjs(), 'day'), // 오늘 기준 남은 일수
+                dDay: dueDate.diff(dayjs(), 'day'),
                 description: v.description
             };
         });
 
-        // 4. 날짜순 정렬
         schedule.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+        console.log("생성된 스케줄:", schedule);
 
         res.status(200).json(schedule);
     } catch (err) {
+        console.error("백신 스케줄 에러:", err);
         res.status(500).json({ error: err.message });
     }
 };
