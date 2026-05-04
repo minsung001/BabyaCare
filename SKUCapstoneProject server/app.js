@@ -2,12 +2,19 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
-const dgram = require('dgram');
+const cron = require('node-cron'); // ✅ 설치 필요: npm install node-cron
 const axios = require('axios');
 const path = require('path');
 
-// DB 연결
-const { connectDB } = require('./src/db');
+// ==========================================
+// 🛠️ DB 및 핵심 컨트롤러 불러오기 (경로 수정 완료)
+// ==========================================
+// 이미지(image_a7c4f7.png) 구조에 맞춰 경로를 './src/...'로 수정했습니다.
+const { connectDB } = require('./src/db'); 
+const receiver = require('./src/receiver'); 
+
+const temhuController = require('./src/controllers/TemhuController');
+const sleepController = require('./src/controllers/sleepController'); 
 
 const app = express();
 const server = http.createServer(app);
@@ -17,26 +24,21 @@ app.set('wss', wss);
 
 const PORT = process.env.PORT || 3001;
 
+// 영상 및 분석 데이터 처리를 위한 용량 제한 확장
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-//receiver.js => rpi와 연결
-const receiver = require('./src/receiver')
-
 // ==========================================
-// ✅ 요청 로그 확인용 코드
+// 📥 요청 로그 확인용 미들웨어
 // ==========================================
 app.use((req, res, next) => {
     console.log("==============================================");
     console.log("📥 요청 들어옴:", req.method, req.originalUrl);
-    console.log("📦 body:", req.body);
-    console.log("🔍 query:", req.query);
-    console.log("==============================================");
     next();
 });
 
 // ==========================================
-// 라우터 설정
+// 🚀 라우터(Router) 설정 구역
 // ==========================================
 const authRouter = require('./src/routes/authRoutes');
 const policyRouter = require('./src/routes/policyRoutes');
@@ -45,7 +47,8 @@ const sleepRoutes = require('./src/routes/sleepRoutes');
 const smartThingsRouter = require('./src/routes/smartThingsRoutes');
 const videoRoutes = require('./src/routes/videoRoutes');
 const soundAnalysisRoutes = require('./src/routes/Soundanalysisroutes');
-const aiRouter = require('./src/routes/airouter'); 
+const aiRouter = require('./src/routes/airouter');
+const temhuRoutes = require('./src/routes/temhuRoutes');
 
 app.use('/auth', authRouter);
 app.use('/api/policies', policyRouter);
@@ -55,60 +58,53 @@ app.use('/api/SmartThings', smartThingsRouter);
 app.use('/api/video', videoRoutes);
 app.use('/api/sound-analysis', soundAnalysisRoutes);
 app.use('/api/ai', aiRouter);
+app.use('/api/temhu', temhuRoutes);
 
 // HLS 스트리밍 파일 서빙
-app.use('/stream', express.static(path.join(__dirname, 'public/stream')))
+app.use('/stream', express.static(path.join(__dirname, 'public/stream')));
 
 // ==========================================
-// 🧪 Flask 서버 통신 테스트 라우트
+// ⚙️ 백그라운드 스케줄러 (Cron Jobs)
 // ==========================================
-app.get('/api/test-ai-bridge', async (req, res) => {
-    console.log("🧪 [Test] Flask 서버로 통신 테스트 시작...");
 
-    const dummyData = {
-        image: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-        camera_id: "test_camera_001"
-    };
+// 1. 30초마다 온습도 데이터 버퍼를 DB에 일괄 적재
+setInterval(() => {
+    // Controller에 정의된 함수명에 맞춰 호출하세요 (receiveSensorData 아님)
+    temhuController.saveBufferToDB(); 
+}, 30000);
 
-    try {
-        const health = await axios.get('http://127.0.0.1:5000/health');
-        console.log("✅ 1. Flask Health Check:", health.data.status);
+// 2. 매 시 정각(0분 0초): 지난 1시간 데이터 요약 및 수면 점수 산출
+cron.schedule('0 0 * * * *', () => {
+    console.log('⏰ [Hourly] 1시간 단위 수면 점수 집계 시작...');
+    sleepController.processHourlyScore();
+});
 
-        const aiRes = await axios.post('http://127.0.0.1:5000/api/video/analyze', dummyData);
-        console.log("✅ 2. Flask AI 응답 성공:", aiRes.data);
-
-        res.json({
-            success: true,
-            message: "Node.js에서 Flask로 데이터 쏘기 성공!",
-            flask_response: aiRes.data
-        });
-    } catch (error) {
-        console.error("❌ [Test] 통신 실패:", error.message);
-        res.status(500).json({
-            success: false,
-            message: "Flask 서버와 통신 불가",
-            error: error.message
-        });
-    }
+// 3. 매일 아침 8시 정각: GPT 상황 요약 리포트 생성
+cron.schedule('0 0 8 * * *', () => {
+    console.log('🌅 [Daily] 아침 8시! GPT 수면 상황 요약 생성 중...');
+    sleepController.generateDailyComprehensiveReport();
 });
 
 // ==========================================
-// 서버 실행
+// 🏁 서버 실행 및 초기화 로직
 // ==========================================
-app.get('/', (req, res) => res.send('🚀 Capstone AI Server Running'));
-
 server.listen(PORT, async () => {
     console.log('==============================================');
-    console.log(`✅ 서버 실행 성공`);
+    try {
+        await connectDB(); // DB 연결 대기
+        console.log(`✅ MongoDB 연결 성공`);
 
-    await connectDB(); // ✅ 이거 추가
+        receiver.init(wss); // WebSocket 초기화
+        console.log(`✅ WebSocket(Receiver) 초기화 성공`);
 
-    receiver.init(wss);
-    
-    axios.post(`http://localhost:${PORT}/api/video/start`).catch(() => {});
-    axios.post(`http://localhost:${PORT}/api/sound-analysis/start`).catch(() => {});
-    
-    console.log(`🚀 서버 실행 중: http://localhost:${PORT}`);
-    console.log(`🧪 테스트 주소: http://localhost:${PORT}/api/test-ai-bridge`);
+        // 초기 구동 시 필요한 시작 요청
+        axios.post(`http://localhost:${PORT}/api/video/start`).catch(() => {});
+        axios.post(`http://localhost:${PORT}/api/sound-analysis/start`).catch(() => {});
+        
+        console.log(`🚀 서버 가동 중: http://localhost:${PORT}`);
+        console.log('⏳ 배치 작업 모드(30초/1시간/8시)가 활성화되었습니다.');
+    } catch (err) {
+        console.error("❌ 서버 초기화 중 오류 발생:", err.message);
+    }
     console.log('==============================================');
 });
