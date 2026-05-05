@@ -1,24 +1,28 @@
-// 1. 위에서 만든 Model 파일을 불러옵니다.
+// src/controllers/aiController.js
 const aiModel = require("../models/ai");
 
 /**
- * 사용자가 리포트 생성을 요청했을 때 실행되는 컨트롤러 함수입니다.
+ * [Internal/External] AI 리포트 생성을 관리하는 컨트롤러
  */
 exports.createReport = async (req, res) => {
   try {
-    // 2. 사용자가 보낸 데이터(Body)를 가져옵니다.
+    // 1. 요청 데이터 가져오기 (8시 자동 생성 시에는 sleepController가 데이터를 직접 넘겨줌)
+    //    안드로이드에서 직접 요청할 때는 req.body를 사용함.
     const data = req.body;
 
-    // 3. Model에 있는 generateAiReport 함수를 실행시켜 리포트를 만듭니다.
+    if (!data || Object.keys(data).length === 0) {
+      return res.status(400).json({ success: false, message: "분석할 데이터가 부족합니다." });
+    }
+
+    // 2. 모델(AI 엔진)에 데이터 전달하여 GPT 답변 생성
     const reportContent = await aiModel.generateAiReport(data);
 
-    // 4. 성공적으로 만들어지면 사용자에게 리포트 내용을 보내줍니다.
+    // 3. 성공 응답
     res.status(200).json({
       success: true,
       data: reportContent
     });
   } catch (error) {
-    // 5. 만약 에러가 발생하면 에러 메시지를 보내줍니다.
     console.error("AI 리포트 생성 중 에러 발생:", error);
     res.status(500).json({
       success: false,

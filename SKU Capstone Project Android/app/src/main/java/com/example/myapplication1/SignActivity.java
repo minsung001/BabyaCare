@@ -38,14 +38,12 @@ public class SignActivity extends AppCompatActivity {
 
         // 뷰 바인딩
         ImageView btnBack = findViewById(R.id.btn_back);
-        EditText etName = findViewById(R.id.et_sign_name); // 현재 서버 전송 안함(원하면 추가 가능)
+        EditText etName = findViewById(R.id.et_sign_name);
         EditText etEmail = findViewById(R.id.et_sign_email);
         EditText etVerifyCode = findViewById(R.id.et_verify_code);
         EditText etUsername = findViewById(R.id.et_sign_id);
         EditText etPassword = findViewById(R.id.et_sign_pw);
         EditText etPasswordCheck = findViewById(R.id.et_sign_pw_check);
-
-        // ✅ 레이아웃에 추가한 생년월일 입력칸
         EditText etBabyBirth = findViewById(R.id.et_baby_birth);
 
         AppCompatButton btnVerifyRequest = findViewById(R.id.btn_verify_request);
@@ -54,7 +52,7 @@ public class SignActivity extends AppCompatActivity {
 
         btnBack.setOnClickListener(v -> finish());
 
-        // ✅ DatePicker: 생년월일 EditText 클릭 시 달력 띄우기
+        // 생년월일 EditText 클릭 시 달력 띄우기
         etBabyBirth.setOnClickListener(v -> showDatePicker(etBabyBirth));
 
         // 2. [인증요청]
@@ -75,13 +73,11 @@ public class SignActivity extends AppCompatActivity {
                         btnVerifyCheck.setVisibility(View.VISIBLE);
                     } else {
                         handleErrorResponse(response);
-                        Toast.makeText(SignActivity.this, "인증 요청 실패 (Logcat 확인)", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(SignActivity.this, "인증 요청 실패", Toast.LENGTH_SHORT).show();
                     }
                 }
-
                 @Override
                 public void onFailure(Call<AuthModels.UserResponse> call, Throwable t) {
-                    Log.e(TAG, "인증요청 네트워크 실패: " + t.getMessage());
                     Toast.makeText(SignActivity.this, "네트워크 연결 확인이 필요합니다.", Toast.LENGTH_SHORT).show();
                 }
             });
@@ -104,14 +100,12 @@ public class SignActivity extends AppCompatActivity {
                         etEmail.setEnabled(false);
                         btnVerifyRequest.setEnabled(false);
                     } else {
-                        handleErrorResponse(response);
                         Toast.makeText(SignActivity.this, "인증번호가 틀리거나 만료되었습니다.", Toast.LENGTH_SHORT).show();
                     }
                 }
-
                 @Override
                 public void onFailure(Call<AuthModels.UserResponse> call, Throwable t) {
-                    Log.e(TAG, "인증확인 네트워크 실패: " + t.getMessage());
+                    Log.e(TAG, "인증확인 네트워크 실패");
                 }
             });
         });
@@ -127,12 +121,22 @@ public class SignActivity extends AppCompatActivity {
                 return;
             }
 
-            if (username.isEmpty() || password.isEmpty() || !password.equals(passwordCheck)) {
-                Toast.makeText(this, "입력 정보를 확인해주세요.", Toast.LENGTH_SHORT).show();
+            if (username.isEmpty() || password.isEmpty()) {
+                Toast.makeText(this, "아이디와 비밀번호를 입력해주세요.", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            // ✅ A: 생년월일 필수
+            // 🔒 [추가] 비밀번호 13자리 제한 로직
+            if (password.length() < 13) {
+                Toast.makeText(this, "비밀번호는 최소 13자리 이상이어야 합니다!", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (!password.equals(passwordCheck)) {
+                Toast.makeText(this, "비밀번호가 일치하지 않습니다.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             if (selectedBabyBirth == null || selectedBabyBirth.isEmpty()) {
                 Toast.makeText(this, "아기 생년월일을 선택해주세요.", Toast.LENGTH_SHORT).show();
                 return;
@@ -152,7 +156,6 @@ public class SignActivity extends AppCompatActivity {
                         Toast.makeText(SignActivity.this, "가입 실패 (중복 혹은 인증 미완료)", Toast.LENGTH_SHORT).show();
                     }
                 }
-
                 @Override
                 public void onFailure(Call<AuthModels.UserResponse> call, Throwable t) {
                     Log.e(TAG, "회원가입 네트워크 실패: " + t.getMessage());
@@ -161,34 +164,24 @@ public class SignActivity extends AppCompatActivity {
         });
     }
 
-    // ✅ DatePickerDialog 띄우고, 선택된 날짜를 YYYY-MM-DD로 세팅
     private void showDatePicker(EditText targetEditText) {
         Calendar cal = Calendar.getInstance();
         int year = cal.get(Calendar.YEAR);
-        int month = cal.get(Calendar.MONTH); // 0~11
+        int month = cal.get(Calendar.MONTH);
         int day = cal.get(Calendar.DAY_OF_MONTH);
 
         DatePickerDialog dialog = new DatePickerDialog(
                 this,
                 (DatePicker view, int y, int m, int d) -> {
-                    // "YYYY-MM-DD" (월은 +1 필요)
                     selectedBabyBirth = String.format(Locale.KOREA, "%04d-%02d-%02d", y, (m + 1), d);
                     targetEditText.setText(selectedBabyBirth);
                 },
                 year, month, day
         );
-
         dialog.show();
     }
 
     private void handleErrorResponse(Response<?> response) {
-        Log.e(TAG, "에러 코드 (Status Code): " + response.code());
-        try {
-            if (response.errorBody() != null) {
-                Log.e(TAG, "에러 내용 (Error Body): " + response.errorBody().string());
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        Log.e(TAG, "에러 코드: " + response.code());
     }
 }

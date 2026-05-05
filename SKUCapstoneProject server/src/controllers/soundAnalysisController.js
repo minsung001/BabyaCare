@@ -15,6 +15,7 @@ class SoundAnalysisController {
     this.silentCount = 0;        // dB -40 이하 지속 횟수
     this.notCryingCount = 0;     // 울음 아닌 결과 횟수
     this.isAnalyzing = false;    // Flask 응답 기다리는 중
+    this.isRunning = false;      // ✅ 루프 실행 여부 (중지 명령 감지용)
     this.intervalId = null;      // 타이머
   }
 
@@ -38,7 +39,7 @@ class SoundAnalysisController {
   // /start 호출되면 실행
   async startAudioAnalysis(req, res) {
     try {
-      if (this.intervalId !== null) {
+      if (this.isRunning) {
         return res.status(400).json({ message: '이미 실행 중' });
       }
       this.startLoop();
@@ -51,47 +52,69 @@ class SoundAnalysisController {
   // /stop 호출되면 실행, 플래그 초기화
   async stopAudioAnalysis(req, res) {
     try {
+      this.isRunning = false; // ✅ 루프 중지 플래그 먼저 내림
+
       if (this.intervalId !== null) {
-        clearInterval(this.intervalId);
+        clearTimeout(this.intervalId); // ✅ clearInterval → clearTimeout
         this.intervalId = null;
       }
+
       this.audioFlag = 0;
       this.silentCount = 0;
       this.notCryingCount = 0;
+
       res.json({ success: true, message: '음성 분석 중지' });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
   }
 
-  // 1초마다 dB 체크, 1초마다 Flask 호출
+  /**
+   * ✅ setInterval → 재귀 setTimeout으로 변경
+   * - setInterval은 이전 루프 완료와 무관하게 1초마다 실행됨
+   * - 재귀 setTimeout은 현재 루프가 끝난 후 1초 뒤에 다음 루프 시작
+   * - 중지 명령(isRunning = false) 즉시 반영 가능
+   */
   startLoop() {
-    this.intervalId = setInterval(async () => {
-      if (this.audioBuffer.length === 0) return;
+    this.isRunning = true;
 
-      const samples = new Float32Array(this.audioBuffer);
-      const db = this.calculateDb(samples);
+    const loop = async () => {
+      // 중지 명령이 들어왔으면 다음 루프 예약 안 함
+      if (!this.isRunning) return;
 
-      if (db > -40) {
-        this.audioFlag = 1;
-        this.silentCount = 0;
-      } else {
-        this.silentCount++;
+      if (this.audioBuffer.length > 0) {
+        const samples = new Float32Array(this.audioBuffer);
+        const db = this.calculateDb(samples);
+
+        if (db > -40) {
+          this.audioFlag = 1;
+          this.silentCount = 0;
+        } else {
+          this.silentCount++;
+        }
+
+        // ✅ isAnalyzing 플래그로 Flask 요청 중복 방지
+        if (this.audioFlag === 1 && !this.isAnalyzing) {
+          await this.requestAudioFlaskAnalysis();
+        }
+
+        // 종료 조건: dB -40 이하 10초(10번) 이상 AND 울음 아닌 결과 10번 이상
+        if (this.silentCount >= 10 && this.notCryingCount >= 10) {
+          console.log('[SoundAnalysisController] 조용해짐. audioFlag 0으로 변경');
+          this.audioFlag = 0;
+          this.silentCount = 0;
+          this.notCryingCount = 0;
+        }
       }
 
-      if (this.audioFlag === 1 && !this.isAnalyzing) {
-        await this.requestAudioFlaskAnalysis();
+      // ✅ 현재 루프가 완전히 끝난 후 1초 뒤에 다음 루프 예약
+      if (this.isRunning) {
+        this.intervalId = setTimeout(loop, 1000);
       }
+    };
 
-      // 종료 조건: dB -40 이하 10초(10번) 이상 AND 울음 아닌 결과 10번 이상
-      if (this.silentCount >= 10 && this.notCryingCount >= 10) {
-        console.log('[SoundAnalysisController] 조용해짐. audioFlag 0으로 변경');
-        this.audioFlag = 0;
-        this.silentCount = 0;
-        this.notCryingCount = 0;
-      }
-
-    }, 1000);
+    // 최초 1회 즉시 실행
+    this.intervalId = setTimeout(loop, 0);
   }
 
   // Flask로 오디오 버퍼 전송
@@ -133,11 +156,11 @@ class SoundAnalysisController {
 
       // console.log('[SoundAnalysisController] 울음 분석 결과:', response.data);
       if (response.data.data.cry_detected === true) {
-        console.log("울음")
+        console.log("울음");
       }
 
     } catch (error) {
-      //console.error('[SoundAnalysisController] Flask 분석 실패:', error.message);
+      // console.error('[SoundAnalysisController] Flask 분석 실패:', error.message);
       const errorResult = {
         timestamp: Date.now(),
         error: error.message,
@@ -146,7 +169,7 @@ class SoundAnalysisController {
       this.analysisHistory.push(errorResult);
 
     } finally {
-      this.isAnalyzing = false;
+      this.isAnalyzing = false; // ✅ 성공/실패 관계없이 반드시 해제
     }
   }
 

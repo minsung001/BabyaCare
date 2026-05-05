@@ -1,24 +1,28 @@
 package com.example.myapplication1;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.cardview.widget.CardView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,19 +38,24 @@ public class Schedule extends AppCompatActivity {
     private List<AuthModels.VaccineResponse> vaccineList = new ArrayList<>();
     private ApiService apiService;
 
+    private RecyclerView recyclerView;
+    private VaccineAdapter adapter;
     private TextView tvNextVaccineName, tvNextVaccineDate;
     private CardView cardUpcomingSummary;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        // ⚠️ [중요] 여기 파일명이 실제 res/layout 폴더의 파일명과 100% 일치해야 합니다!
         setContentView(R.layout.activity_schedule);
 
         tvNextVaccineName = findViewById(R.id.tvNextVaccineName);
         tvNextVaccineDate = findViewById(R.id.tvNextVaccineDate);
         cardUpcomingSummary = findViewById(R.id.cardUpcomingSummary);
+        recyclerView = findViewById(R.id.rv_vaccine_list);
+
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        adapter = new VaccineAdapter(vaccineList);
+        recyclerView.setAdapter(adapter);
 
         findViewById(R.id.btnBack).setOnClickListener(v -> finish());
 
@@ -63,12 +72,21 @@ public class Schedule extends AppCompatActivity {
     }
 
     private void loadData() {
-        apiService.getVaccineSchedule("testUserId123").enqueue(new Callback<List<AuthModels.VaccineResponse>>() {
+        SharedPreferences sharedPref = getSharedPreferences("UserPrefs", MODE_PRIVATE);
+        String realUserId = sharedPref.getString("userEmail", "");
+
+        if (realUserId.isEmpty()) {
+            Toast.makeText(this, "로그인 정보가 없습니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        apiService.getVaccineSchedule(realUserId).enqueue(new Callback<List<AuthModels.VaccineResponse>>() {
             @Override
-            public void onResponse(Call<List<AuthModels.VaccineResponse>> call, Response<List<AuthModels.VaccineResponse>> response) {
+            public void onResponse(@NonNull Call<List<AuthModels.VaccineResponse>> call, @NonNull Response<List<AuthModels.VaccineResponse>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     vaccineList.clear();
                     vaccineList.addAll(response.body());
+                    adapter.notifyDataSetChanged();
 
                     if (!vaccineList.isEmpty()) {
                         AuthModels.VaccineResponse next = vaccineList.get(0);
@@ -76,13 +94,16 @@ public class Schedule extends AppCompatActivity {
                         tvNextVaccineDate.setText(next.dueDate + " 예정");
 
                         cardUpcomingSummary.setOnClickListener(v -> showEditDialog(next));
-
                         sendNotification("접종 알림", next.name + " 접종일이 얼마 남지 않았습니다!");
+                    } else {
+                        tvNextVaccineName.setText("예정된 접종이 없습니다.");
+                        tvNextVaccineDate.setText("");
                     }
                 }
             }
+
             @Override
-            public void onFailure(Call<List<AuthModels.VaccineResponse>> call, Throwable t) {
+            public void onFailure(@NonNull Call<List<AuthModels.VaccineResponse>> call, @NonNull Throwable t) {
                 Log.e("Schedule", "에러: " + t.getMessage());
             }
         });
@@ -106,14 +127,14 @@ public class Schedule extends AppCompatActivity {
     private void updateVaccineOnServer(String vaccineId, String newDate) {
         apiService.updateVaccine(vaccineId, new AuthModels.VaccineUpdate(newDate)).enqueue(new Callback<Void>() {
             @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
+            public void onResponse(@NonNull Call<Void> call, @NonNull Response<Void> response) {
                 if (response.isSuccessful()) {
                     Toast.makeText(Schedule.this, "수정 완료", Toast.LENGTH_SHORT).show();
                     loadData();
                 }
             }
             @Override
-            public void onFailure(Call<Void> call, Throwable t) {
+            public void onFailure(@NonNull Call<Void> call, @NonNull Throwable t) {
                 Toast.makeText(Schedule.this, "실패", Toast.LENGTH_SHORT).show();
             }
         });
@@ -127,13 +148,27 @@ public class Schedule extends AppCompatActivity {
         }
     }
 
+    private void checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, 101);
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
     private void sendNotification(String title, String content) {
-        // ⚠️ 안드로이드 13 이상 권한 체크
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            return;
+        // 1. 알림 매니저 준비
+        NotificationManagerCompat manager = NotificationManagerCompat.from(this);
+
+        // 2. 권한 체크 (안드로이드 13 이상)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                return;
+            }
         }
 
+        // 3. 알림 빌더 생성
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle(title)
@@ -141,15 +176,7 @@ public class Schedule extends AppCompatActivity {
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setAutoCancel(true);
 
-        NotificationManagerCompat manager = NotificationManagerCompat.from(this);
+        // 4. 알림 발송
         manager.notify(1, builder.build());
-    }
-
-    private void checkNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, 101);
-            }
-        }
     }
 }

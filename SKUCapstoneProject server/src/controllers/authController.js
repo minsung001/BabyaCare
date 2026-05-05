@@ -303,38 +303,68 @@ exports.resetPassword = async (req, res) => {
 
 
 // controllers/authController.js
+// controllers/authController.js
+
+// controllers/authController.js
 
 exports.updateProfile = async (req, res) => {
-    // 안드로이드에서 보낼 데이터: email(조회용), username, babyBirth
-    const { email, username, babyBirth } = req.body; 
+  const { username, name, babyBirth, currentPassword, newPassword } = req.body;
 
-    try {
-        // 1. 유저를 찾아서 정보 업데이트
-        const updatedUser = await User.findOneAndUpdate(
-            { email: email }, // 이메일로 해당 유저를 찾음
-            { 
-                $set: { 
-                    username: username, 
-                    babyBirth: babyBirth 
-                } 
-            },
-            { new: true } // 업데이트된 후의 데이터를 반환받음
-        );
+  try {
+    const loginId = username?.toLowerCase().trim();
 
-        if (!updatedUser) {
-            return res.status(404).json({ ok: false, message: "사용자를 찾을 수 없습니다." });
-        }
-
-        res.status(200).json({ 
-            ok: true, 
-            message: "개인정보가 성공적으로 수정되었습니다.",
-            user: {
-                username: updatedUser.username,
-                babyBirth: updatedUser.babyBirth
-            }
-        });
-    } catch (error) {
-        console.error("Update Error:", error);
-        res.status(500).json({ ok: false, message: "서버 오류 발생" });
+    if (!loginId) {
+      return res.status(400).json({ ok: false, message: "아이디가 필요합니다." });
     }
+
+    const user = await User.findOne({ username: loginId });
+
+    if (!user) {
+      return res.status(404).json({ ok: false, message: "사용자를 찾을 수 없습니다." });
+    }
+
+    // 🔒 비밀번호 변경
+    if (newPassword && newPassword.trim() !== "") {
+      if (!currentPassword) {
+        return res.status(400).json({ ok: false, message: "현재 비밀번호가 필요합니다." });
+      }
+
+      const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isMatch) {
+        return res.status(401).json({ ok: false, message: "현재 비밀번호가 틀립니다." });
+      }
+
+      user.passwordHash = await bcrypt.hash(newPassword, 10);
+    }
+
+    // ❗ 절대 아이디 변경하지 않음
+    // user.username = ... ❌
+
+    // ✅ 표시 이름만 변경
+    if (name && name.trim() !== "") {
+      user.name = name.trim();
+    }
+
+    // 생년월일
+    if (babyBirth) {
+      user.babyBirth = new Date(babyBirth);
+    }
+
+    await user.save();
+
+    return res.status(200).json({
+      ok: true,
+      message: "성공적으로 수정되었습니다.",
+      user: {
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        babyBirth: user.babyBirth
+      }
+    });
+
+  } catch (error) {
+    console.error("Update Profile Error:", error);
+    return res.status(500).json({ ok: false, message: "서버 오류 발생" });
+  }
 };
