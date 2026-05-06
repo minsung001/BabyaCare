@@ -61,6 +61,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
+<<<<<<< HEAD
             <!-- ✅ TextureView를 ImageView로 변경 및 ID를 videoView로 수정 -->
             <ImageView
                 android:id="@+id/videoView"
@@ -68,6 +69,14 @@
                 android:layout_height="match_parent"
                 android:background="#E0E0E0"
                 android:scaleType="centerCrop" />
+=======
+            <!-- 수정 -->
+            <androidx.media3.ui.PlayerView
+                android:id="@+id/playerView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#E0E0E0" />
+>>>>>>> kgj
 
             <!-- 🍼 아기 감지 상태 표시 오버레이 (선택 사항) -->
             <TextView

@@ -73,9 +73,24 @@
                 android:textSize="18sp"
                 android:textStyle="bold" />
 
+<<<<<<< HEAD
             <!-- 수정된 부분: 고정 카드 2개 대신 모든 일정을 보여줄 리사이클러뷰 추가 -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rv_vaccine_list"
+=======
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardUpcomingSummary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#FFFFFF"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="4dp"
+            app:layout_constraintTop_toBottomOf="@id/tvUpcomingLabel"
+            app:layout_constraintStart_toStartOf="parent">
+
+            <LinearLayout
+>>>>>>> kgj
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
@@ -90,6 +105,34 @@
                 android:textColor="#CCCCCC"
                 android:textSize="12sp" />
 
+<<<<<<< HEAD
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </androidx.constraintlayout.widget.ConstraintLayout>
+=======
+                <TextView
+                    android:id="@+id/tvNextVaccineDate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    tools:text="2026년 4월 25일 예정"
+                    android:textColor="#5E6BB2"
+                    android:textSize="15sp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_vaccine_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:nestedScrollingEnabled="false"
+            app:layout_constraintTop_toBottomOf="@id/cardUpcomingSummary"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            android:paddingBottom="20dp" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.core.widget.NestedScrollView>
+>>>>>>> kgj

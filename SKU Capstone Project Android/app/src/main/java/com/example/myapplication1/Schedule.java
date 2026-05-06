@@ -37,21 +37,38 @@ public class Schedule extends AppCompatActivity {
     private List<AuthModels.VaccineResponse> filteredList = new ArrayList<>(); // 90일 필터링용 리스트
     private ApiService apiService;
 
+<<<<<<< HEAD
     // 리사이클러뷰 컴포넌트
     private RecyclerView recyclerView;
     private VaccineAdapter adapter;
+=======
+    private RecyclerView recyclerView;
+    private VaccineAdapter adapter;
+    private TextView tvNextVaccineName, tvNextVaccineDate;
+    private CardView cardUpcomingSummary;
+>>>>>>> kgj
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_schedule);
 
+<<<<<<< HEAD
         // 1. 리사이클러뷰 초기화 (기존 카드뷰 연결 코드 삭제됨)
         recyclerView = findViewById(R.id.rv_vaccine_list);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
         // 2. 어댑터 연결 (필터링된 리스트를 사용)
         adapter = new VaccineAdapter(filteredList);
+=======
+        tvNextVaccineName = findViewById(R.id.tvNextVaccineName);
+        tvNextVaccineDate = findViewById(R.id.tvNextVaccineDate);
+        cardUpcomingSummary = findViewById(R.id.cardUpcomingSummary);
+        recyclerView = findViewById(R.id.rv_vaccine_list);
+
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        adapter = new VaccineAdapter(vaccineList);
+>>>>>>> kgj
         recyclerView.setAdapter(adapter);
 
         findViewById(R.id.btnBack).setOnClickListener(v -> finish());
@@ -84,7 +101,23 @@ public class Schedule extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     vaccineList.clear();
                     vaccineList.addAll(response.body());
+<<<<<<< HEAD
                     updateUI(); // 필터링 로직 실행
+=======
+                    adapter.notifyDataSetChanged();
+
+                    if (!vaccineList.isEmpty()) {
+                        AuthModels.VaccineResponse next = vaccineList.get(0);
+                        tvNextVaccineName.setText("D-" + next.dDay + " " + next.name);
+                        tvNextVaccineDate.setText(next.dueDate + " 예정");
+
+                        cardUpcomingSummary.setOnClickListener(v -> showEditDialog(next));
+                        sendNotification("접종 알림", next.name + " 접종일이 얼마 남지 않았습니다!");
+                    } else {
+                        tvNextVaccineName.setText("예정된 접종이 없습니다.");
+                        tvNextVaccineDate.setText("");
+                    }
+>>>>>>> kgj
                 }
             }
 
@@ -166,12 +199,24 @@ public class Schedule extends AppCompatActivity {
 
     @SuppressLint("MissingPermission")
     private void sendNotification(String title, String content) {
+<<<<<<< HEAD
         NotificationManagerCompat manager = NotificationManagerCompat.from(this);
+=======
+        // 1. 알림 매니저 준비
+        NotificationManagerCompat manager = NotificationManagerCompat.from(this);
+
+        // 2. 권한 체크 (안드로이드 13 이상)
+>>>>>>> kgj
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 return;
             }
         }
+<<<<<<< HEAD
+=======
+
+        // 3. 알림 빌더 생성
+>>>>>>> kgj
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle(title)
@@ -179,6 +224,10 @@ public class Schedule extends AppCompatActivity {
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setAutoCancel(true);
 
+<<<<<<< HEAD
+=======
+        // 4. 알림 발송
+>>>>>>> kgj
         manager.notify(1, builder.build());
     }
 }

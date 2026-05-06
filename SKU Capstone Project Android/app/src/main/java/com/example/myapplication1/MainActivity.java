@@ -96,6 +96,13 @@ public class MainActivity extends AppCompatActivity {
             public void onFailure(Call<AuthModels.UserResponse> call, Throwable t) {
                 Log.e(TAG, "Login Network Error: " + t.getMessage());
                 Toast.makeText(MainActivity.this, "서버 연결 실패", Toast.LENGTH_SHORT).show();
+<<<<<<< HEAD
+=======
+                //테스트용
+                Intent intent = new Intent(MainActivity.this, Menuactivity.class);
+                startActivity(intent);
+                finish();
+>>>>>>> kgj
             }
         });
     }

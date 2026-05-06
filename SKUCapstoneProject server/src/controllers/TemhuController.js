@@ -7,14 +7,15 @@ let sensorBuffer = [];
  * 1. 센서에서 데이터를 받아 버퍼에 넣는 함수 (IoT -> Node)
  */
 exports.receiveSensorData = (req, res) => {
-    const { temperature, humidity, userEmail } = req.body;
+    // 앱과 통일하기 위해 userId로 받음
+    const { temperature, humidity, userId } = req.body;
 
-    if (temperature === undefined || humidity === undefined || !userEmail) {
-        return res.status(400).json({ message: '온도, 습도 및 사용자 이메일 정보가 필요합니다.' });
+    if (temperature === undefined || humidity === undefined || !userId) {
+        return res.status(400).json({ message: '온도, 습도 및 사용자 ID 정보가 필요합니다.' });
     }
 
     sensorBuffer.push({
-        userEmail,
+        userID: userId, // DB 필드명인 userID에 저장
         temperature,
         humidity,
         timestamp: new Date()
@@ -27,10 +28,12 @@ exports.receiveSensorData = (req, res) => {
  * 2. 안드로이드 앱에서 최신 데이터를 가져가는 함수 (Node -> Android)
  */
 exports.getLatestData = async (req, res) => {
-    const { userEmail } = req.query;
+    // 앱이 보낸 ?userId=... 값을 가져옴
+    const { userId } = req.query;
 
     try {
-        const query = userEmail ? { userEmail } : {};
+        // DB 필드명 userID와 앱에서 온 userId를 매칭
+        const query = userId ? { userId: userId } : {};
         const latestData = await TemperHumility.findOne(query).sort({ timestamp: -1 });
         
         if (!latestData) {
@@ -47,10 +50,10 @@ exports.getLatestData = async (req, res) => {
  * 3. 10분 단위로 그룹화된 온습도 이력을 반환하는 함수 (Node -> Android)
  */
 exports.getHistoryData = async (req, res) => {
-    const { userEmail } = req.query;
+    const { userId } = req.query;
 
-    if (!userEmail) {
-        return res.status(400).json({ message: "사용자 이메일이 필요합니다." });
+    if (!userId) {
+        return res.status(400).json({ message: "사용자 ID가 필요합니다." });
     }
 
     try {
@@ -59,7 +62,7 @@ exports.getHistoryData = async (req, res) => {
         const history = await TemperHumility.aggregate([
             {
                 $match: {
-                    userEmail: userEmail,
+                    userID: userId, // 💡 DB 필드명 userID 사용
                     timestamp: { $gte: startTime }
                 }
             },
@@ -93,22 +96,19 @@ exports.getHistoryData = async (req, res) => {
 };
 
 /**
- * 4. 60초마다 버퍼의 데이터를 DB에 일괄 저장하는 함수 (Batch Job)
- * 설명: 실행 주기를 60초로 변경하여 DB 쓰기 성능을 최적화했습니다.
+ * 4. 60초마다 버퍼의 데이터를 DB에 일괄 저장
  */
 exports.saveBufferToDB = async () => {
     if (sensorBuffer.length === 0) return;
 
-    // 현재 버퍼의 내용을 복사하고 버퍼를 즉시 비움 (새로 들어올 데이터 수신을 위해)
     const dataToInsert = [...sensorBuffer];
     sensorBuffer = [];
 
     try {
         await TemperHumility.insertMany(dataToInsert);
-        console.log(`[DB 적재 완료] 60초간 쌓인 ${dataToInsert.length}개의 데이터가 저장되었습니다.`);
+        console.log(`[DB 적재 완료] ${dataToInsert.length}개의 데이터 저장됨.`);
     } catch (error) {
         console.error('[DB 적재 실패]', error);
-        // 실패 시 데이터 유실 방지를 위해 기존 버퍼 앞에 다시 복구
         sensorBuffer = [...dataToInsert, ...sensorBuffer]; 
     }
 };
