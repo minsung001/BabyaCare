@@ -7,6 +7,7 @@ import java.io.Serializable;
 public class AuthModels {
 
     // === 1. 인증 및 계정 관련 모델 ===
+
     public static class VerifyRequest {
         String email;
         public VerifyRequest(String email) { this.email = email; }
@@ -40,6 +41,7 @@ public class AuthModels {
     public static class LoginRequest {
         String username;
         String password;
+
         public LoginRequest(String username, String password) {
             this.username = username;
             this.password = password;
@@ -57,6 +59,7 @@ public class AuthModels {
     public static class ResetPasswordRequest {
         String email;
         String newPassword;
+
         public ResetPasswordRequest(String email, String newPassword) {
             this.email = email;
             this.newPassword = newPassword;
@@ -81,6 +84,7 @@ public class AuthModels {
     }
 
     // === 2. 복지 및 일정 관련 모델 ===
+
     public static class PolicyResponse implements Serializable {
         @SerializedName("서비스명") public String title;
         @SerializedName("서비스요약") public String summary;
@@ -90,20 +94,39 @@ public class AuthModels {
     }
 
     public static class VaccineResponse implements Serializable {
-        @SerializedName("_id") public String id;
+        @SerializedName("id") public String id;
         @SerializedName("name") public String name;
         @SerializedName("degree") public int degree;
         @SerializedName("dueDate") public String dueDate;
         @SerializedName("dDay") public int dDay;
+        @SerializedName("targetMonthString") public String targetMonthString; // ✅ 추가
         @SerializedName("description") public String description;
     }
 
     public static class VaccineUpdate {
         @SerializedName("dueDate") public String dueDate;
-        public VaccineUpdate(String dueDate) { this.dueDate = dueDate; }
+
+        public VaccineUpdate(String dueDate) {
+            this.dueDate = dueDate;
+        }
     }
 
-    // === 3. 환경 데이터 모델 (규진님 주석 반영) ===
+    // === 3. 환경 데이터 모델 ===
+
+    public static class TemperHumilityResponse implements Serializable {
+        @SerializedName("userId") public String userId;
+        @SerializedName("temperature") public double temperature;
+        @SerializedName("humidity") public double humidity;
+        @SerializedName("sleepScore") public Integer sleepScore;
+        @SerializedName("timestamp") public String timestamp;
+    }
+
+    public static class TemperHistoryResponse implements Serializable {
+        @SerializedName("temperature") public double temperature;
+        @SerializedName("humidity") public double humidity;
+        @SerializedName("timestamp") public String time;
+    }
+
     public static class SleepResponse implements Serializable {
         @SerializedName("time") public String time;
         @SerializedName("temp") public float temp;
@@ -114,10 +137,12 @@ public class AuthModels {
         @SerializedName("isEmergency") public boolean isEmergency;
     }
 
-    // === 4. SmartThings 연동 모델 ===
+    // === 4. SmartThings 및 분석 ===
+
     public static class STTokenRequest {
         @SerializedName("email") public String email;
         @SerializedName("token") public String token;
+
         public STTokenRequest(String email, String token) {
             this.email = email;
             this.token = token;
@@ -136,28 +161,18 @@ public class AuthModels {
         @SerializedName("label") public String label;
     }
 
-    // === 5. 🍼 비디오 분석 결과 모델 (WebSocket 수신용) ===
-    // Node.js가 Flask 결과를 받아 "analysisResult" 타입으로 쏴줄 때 사용함
     public static class AnalysisResponse implements Serializable {
         @SerializedName("timestamp") public long timestamp;
         @SerializedName("result") public AnalysisData result;
 
         public static class AnalysisData {
-            // Node.js의 response.data 부분
             @SerializedName("data") public InnerData data;
         }
 
         public static class InnerData {
-            // Node.js의 response.data.data.result 부분
             @SerializedName("result") public DetectionResult detectionResult;
         }
 
-        // 🌡️ 최신 온습도 응답
-        public static class TemperHumilityResponse {
-            public float temperature;
-            public float humidity;
-            public String timestamp;
-        }
         public static class DetectionResult {
             @SerializedName("infant_detected") public boolean infantDetected;
             @SerializedName("confidence") public float confidence;
