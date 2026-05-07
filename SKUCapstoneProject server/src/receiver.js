@@ -57,6 +57,7 @@ udpServer.on('error', (err) => {
 // ffmpeg 프로세스 (분석용 - 영상/오디오 분리)
 const ffmpegProcess = spawn('ffmpeg', [
     '-fflags', '+discardcorrupt',  // 추가
+    '-f', 'mpegts',
     '-i', 'pipe:0',
     '-map', '0:v',
     '-f', 'rawvideo',
@@ -91,13 +92,16 @@ ffmpegProcess.stdio[3].on('data', (audioChunk) => {
 
 // HLS용 ffmpeg
 const hlsProcess = spawn('ffmpeg', [
+    '-f', 'mpegts',
     '-i', 'pipe:0',
     '-c:v', 'copy',                              // 재인코딩 없음
     '-c:a', 'copy',                              // 재인코딩 없음
     '-f', 'hls',
-    '-hls_time', '2',                            // 2초짜리 조각
-    '-hls_list_size', '3',                       // 최근 3개 조각만 유지
-    '-hls_flags', 'delete_segments',             // 오래된 파일 자동 삭제
+    '-hls_time', '1',                            // 2초짜리 조각
+    '-hls_list_size', '2',                       // 최근 3개 조각만 유지
+    '-hls_flags', 'delete_segments+append_list',             // 오래된 파일 자동 삭제
+    '-hls_allow_cache', '0',                       // ← 캐시 비활성화 추가
+    '-hls_segment_filename', path.join(hlsDir, 'streamingfile%d.ts'),  // ← 세그먼트 파일명 명시
     path.join(hlsDir, 'streamingfile.m3u8')
 ], {
     stdio: ['pipe', 'pipe', 'pipe']

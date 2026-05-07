@@ -58,27 +58,19 @@
                 android:id="@+id/cardLiveStream"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="60dp"
-                android:layout_marginBottom="60dp"
+                android:layout_marginTop="120dp"
+                android:layout_marginBottom="120dp"
                 app:cardCornerRadius="24dp"
                 app:cardElevation="0dp"
                 app:cardBackgroundColor="#F8F9FD">
-                <androidx.constraintlayout.widget.ConstraintLayout
+
+                <!-- vlc -->
+                <org.videolan.libvlc.util.VLCVideoLayout
+                    android:id="@+id/mainPreview"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <!-- 💡 자바의 mainPreview와 ID 일치시킴 -->
-                    <androidx.media3.ui.PlayerView
-                        android:id="@+id/mainPreview"
-                        android:layout_width="0dp"
-                        android:layout_height="0dp"
-                        android:background="@android:color/black"
-                        android:importantForAccessibility="no"
-                        app:use_controller="false"
-                        app:layout_constraintDimensionRatio="16:9"
-                        app:layout_constraintEnd_toEndOf="parent"
-                        app:layout_constraintStart_toStartOf="parent"
-                        app:layout_constraintTop_toTopOf="parent" />
-                </androidx.constraintlayout.widget.ConstraintLayout>
+                    android:layout_height="220dp"
+                    android:background="@android:color/black" />
+
             </androidx.cardview.widget.CardView>
 
             <GridLayout

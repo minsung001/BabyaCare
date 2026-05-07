@@ -1,15 +1,21 @@
 package com.example.myapplication1;
 
+import android.net.Uri;
 import android.os.Bundle;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.media3.common.MediaItem;
-import androidx.media3.exoplayer.ExoPlayer;
-import androidx.media3.ui.PlayerView;
+
+import org.videolan.libvlc.LibVLC;
+import org.videolan.libvlc.Media;
+import org.videolan.libvlc.MediaPlayer;
+import org.videolan.libvlc.util.VLCVideoLayout;
+
+import java.util.ArrayList;
 
 public class camera extends AppCompatActivity {
 
-    private ExoPlayer player;
+    private LibVLC libVLC;
+    private MediaPlayer mediaPlayer;
     private TextView statusText;
 
     @Override
@@ -17,32 +23,46 @@ public class camera extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera);
 
-        // 1. UI 컴포넌트 초기화
         statusText = findViewById(R.id.statusText);
-        PlayerView playerView = findViewById(R.id.playerView);
+        VLCVideoLayout playerView = findViewById(R.id.playerView);
 
-        // 2. ExoPlayer 빌더를 사용하여 플레이어 초기화 (규진님 방식)
-        player = new ExoPlayer.Builder(this).build();
-        playerView.setPlayer(player);
+        ArrayList<String> options = new ArrayList<>();
+        options.add("--network-caching=150");
+        options.add("--live-caching=150");
+        options.add("--clock-jitter=0");
+        options.add("--clock-synchro=0");
+        options.add("--video-filter=transform");
+        options.add("--transform-type=90");
 
-        // 3. 미디어 아이템 설정 (HLS 스트리밍 주소)
-        // 10.0.2.2는 안드로이드 에뮬레이터에서 로컬 호스트 PC를 가리키는 주소입니다.
-        MediaItem mediaItem = MediaItem.fromUri("http://10.0.2.2:3001/stream/streamingfile.m3u8");
+        libVLC = new LibVLC(this, options);
+        mediaPlayer = new MediaPlayer(libVLC);
+        mediaPlayer.attachViews(playerView, null, false, false);
 
-        player.setMediaItem(mediaItem);
-        player.prepare(); // 재생 준비
-        player.play();    // 재생 시작
+        Media media = new Media(libVLC, Uri.parse("http://10.0.2.2:3001/stream/streamingfile.m3u8"));
+        media.setHWDecoderEnabled(true, false);
+        mediaPlayer.setMedia(media);
+        media.release();
+        mediaPlayer.play();
 
         statusText.setText("Live Streaming");
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (mediaPlayer != null) mediaPlayer.play();
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
-        // 4. 액티비티 종료 시 플레이어 리소스 해제 (메모리 누수 방지 필수)
-        if (player != null) {
-            player.release();
-            player = null;
+        if (mediaPlayer != null) {
+            mediaPlayer.release();
+            mediaPlayer = null;
+        }
+        if (libVLC != null) {
+            libVLC.release();
+            libVLC = null;
         }
     }
 }

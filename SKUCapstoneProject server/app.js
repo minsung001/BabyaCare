@@ -49,7 +49,16 @@ app.use('/api/sound-analysis', soundAnalysisRoutes);
 app.use('/api/ai', aiRouter);
 app.use('/api/temhu', temhuRoutes);
 
-app.use('/stream', express.static(path.join(__dirname, 'public/stream')));
+//app.use('/stream', express.static(path.join(__dirname, 'public/stream')));
+app.use('/stream', (req, res, next) => {
+    if (req.path.endsWith('.m3u8')) {
+        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl')
+        res.setHeader('Cache-Control', 'no-cache, no-store')
+    } else if (req.path.endsWith('.ts')) {
+        res.setHeader('Content-Type', 'video/mp2t')
+    }
+    next()
+}, express.static(path.join(__dirname, 'public/stream')));
 
 // 30초마다 온습도 버퍼 DB 저장
 setInterval(() => {
