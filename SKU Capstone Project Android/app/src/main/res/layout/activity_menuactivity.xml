@@ -58,20 +58,23 @@
                 android:id="@+id/cardLiveStream"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="60dp"
+                android:layout_marginBottom="60dp"
                 app:cardCornerRadius="24dp"
-                app:cardElevation="0dp">
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#F8F9FD">
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
                     <!-- 💡 자바의 mainPreview와 ID 일치시킴 -->
-                    <ImageView
+                    <androidx.media3.ui.PlayerView
                         android:id="@+id/mainPreview"
                         android:layout_width="0dp"
                         android:layout_height="0dp"
-                        android:background="@android:color/darker_gray"
-                        android:scaleType="centerCrop"
+                        android:background="@android:color/black"
                         android:importantForAccessibility="no"
-                        app:layout_constraintDimensionRatio="1:1"
+                        app:use_controller="false"
+                        app:layout_constraintDimensionRatio="16:9"
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintTop_toTopOf="parent" />

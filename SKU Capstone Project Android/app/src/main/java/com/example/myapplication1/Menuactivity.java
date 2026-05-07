@@ -1,34 +1,33 @@
 package com.example.myapplication1;
 
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.Bundle;
-import android.util.Log;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.Toast;
+import android.widget.ImageView;
 
 import androidx.appcompat.app.AppCompatActivity;
-
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
+import androidx.media3.common.MediaItem;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.PlayerView;
 
 public class Menuactivity extends AppCompatActivity {
 
-    private ImageView mainPreview;
-    private DatagramSocket socket;
-    private Thread receiveThread;
-    private boolean isStreaming = false;
-    private final int UDP_PORT = 5005;
+    private ExoPlayer player;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_menuactivity);
 
-        mainPreview = findViewById(R.id.mainPreview);
+        PlayerView mainPreview = findViewById(R.id.mainPreview);
         ImageView ivProfile = findViewById(R.id.ivHeaderIcon);
+
+        player = new ExoPlayer.Builder(this).build();
+        mainPreview.setPlayer(player);
+        MediaItem mediaItem = MediaItem.fromUri("http://10.0.2.2:3001/stream/streamingfile.m3u8");
+        player.setMediaItem(mediaItem);
+        player.prepare();
+        player.play();
 
         LinearLayout btnEnvironment = findViewById(R.id.btn_environment);
         LinearLayout btnCamera = findViewById(R.id.btn_camera);
@@ -37,79 +36,33 @@ public class Menuactivity extends AppCompatActivity {
         LinearLayout androidBtnReport = findViewById(R.id.btn_report);
         LinearLayout btnPolicy = findViewById(R.id.btn_policy);
 
-        ivProfile.setOnClickListener(v -> {
-            startActivity(new Intent(Menuactivity.this, mypage.class));
-        });
-
-        btnEnvironment.setOnClickListener(v -> {
-            startActivity(new Intent(Menuactivity.this,EnvironmentActivity.class));
-        });
-
-        btnCamera.setOnClickListener(v -> {
-            startActivity(new Intent(Menuactivity.this, camera.class));
-        });
-
-        btnSchedule.setOnClickListener(v -> {
-            startActivity(new Intent(Menuactivity.this, Schedule.class));
-        });
-
-        btnGraph.setOnClickListener(v -> {
-            startActivity(new Intent(Menuactivity.this, GrapeActivity.class));
-        });
-
-        // ✅ report.class → GptReportActivity.class 로 변경
-        androidBtnReport.setOnClickListener(v -> {
-            startActivity(new Intent(Menuactivity.this, GptReportActivity.class));
-        });
-
-        btnPolicy.setOnClickListener(v -> {
-            startActivity(new Intent(Menuactivity.this, policy.class));
-        });
+        ivProfile.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, mypage.class)));
+        btnEnvironment.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, EnvironmentActivity.class)));
+        btnCamera.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, camera.class)));
+        btnSchedule.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, Schedule.class)));
+        btnGraph.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, GrapeActivity.class)));
+        androidBtnReport.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, GptReportActivity.class)));
+        btnPolicy.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, policy.class)));
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        isStreaming = true;
-        startUdpReceiver();
+        if (player != null) player.play();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        stopStreaming();
+        if (player != null) player.pause();
     }
 
-    private void startUdpReceiver() {
-        receiveThread = new Thread(() -> {
-            try {
-                socket = new DatagramSocket(UDP_PORT);
-                byte[] buffer = new byte[65535];
-                while (isStreaming) {
-                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                    socket.receive(packet);
-
-                    Bitmap bitmap = BitmapFactory.decodeByteArray(packet.getData(), 0, packet.getLength());
-                    if (bitmap != null) {
-                        runOnUiThread(() -> mainPreview.setImageBitmap(bitmap));
-                    }
-                }
-            } catch (Exception e) {
-                Log.e("UDP_MENU", "에러: " + e.getMessage());
-            } finally {
-                stopStreaming();
-            }
-        });
-        receiveThread.start();
-    }
-
-    private void stopStreaming() {
-        isStreaming = false;
-        if (socket != null && !socket.isClosed()) {
-            socket.close();
-        }
-        if (receiveThread != null && receiveThread.isAlive()) {
-            receiveThread.interrupt();
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (player != null) {
+            player.release();
+            player = null;
         }
     }
 }
