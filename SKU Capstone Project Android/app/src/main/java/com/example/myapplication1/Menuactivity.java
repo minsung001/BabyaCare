@@ -1,11 +1,12 @@
 package com.example.myapplication1;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
-import android.widget.LinearLayout;
 import android.widget.ImageView;
-import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -35,57 +36,109 @@ public class Menuactivity extends AppCompatActivity {
 
         libVLC = new LibVLC(this, options);
         mediaPlayer = new MediaPlayer(libVLC);
+
         mediaPlayer.attachViews(mainPreview, null, false, false);
 
-        Media media = new Media(libVLC, Uri.parse("http://10.0.2.2:3001/stream/streamingfile.m3u8"));
+        Media media = new Media(
+                libVLC,
+                Uri.parse("http://10.0.2.2:3001/stream/streamingfile.m3u8")
+        );
+
         media.setHWDecoderEnabled(true, false);
+
         mediaPlayer.setMedia(media);
         media.release();
+
         mediaPlayer.setAspectRatio(null);
         mediaPlayer.setScale(1);
+
         mainPreview.post(() -> {
             int width = mainPreview.getWidth();
             int height = width * 9 / 16;
+
             mainPreview.getLayoutParams().height = height;
             mainPreview.requestLayout();
         });
+
         mediaPlayer.play();
 
         LinearLayout btnEnvironment = findViewById(R.id.btn_environment);
         LinearLayout btnCamera = findViewById(R.id.btn_camera);
         LinearLayout btnSchedule = findViewById(R.id.btn_schedule);
         LinearLayout btnGraph = findViewById(R.id.btn_graph);
-        LinearLayout androidBtnReport = findViewById(R.id.btn_report);
+        LinearLayout btnReport = findViewById(R.id.btn_report);
         LinearLayout btnPolicy = findViewById(R.id.btn_policy);
 
-        ivProfile.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, mypage.class)));
-        btnEnvironment.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, EnvironmentActivity.class)));
-        btnCamera.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, camera.class)));
-        btnSchedule.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, Schedule.class)));
-        btnGraph.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, GrapeActivity.class)));
-        androidBtnReport.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, GptReportActivity.class)));
-        btnPolicy.setOnClickListener(v -> startActivity(new Intent(Menuactivity.this, policy.class)));
+        ivProfile.setOnClickListener(v ->
+                startActivity(new Intent(Menuactivity.this, mypage.class))
+        );
+
+        btnEnvironment.setOnClickListener(v ->
+                startActivity(new Intent(Menuactivity.this, EnvironmentActivity.class))
+        );
+
+        btnCamera.setOnClickListener(v ->
+                startActivity(new Intent(Menuactivity.this, camera.class))
+        );
+
+        btnSchedule.setOnClickListener(v ->
+                startActivity(new Intent(Menuactivity.this, Schedule.class))
+        );
+
+        btnGraph.setOnClickListener(v ->
+                startActivity(new Intent(Menuactivity.this, GrapeActivity.class))
+        );
+
+        btnReport.setOnClickListener(v ->
+                startActivity(new Intent(Menuactivity.this, GptReportActivity.class))
+        );
+
+        btnPolicy.setOnClickListener(v ->
+                startActivity(new Intent(Menuactivity.this, policy.class))
+        );
+
+        // 저장된 로그인 userId 가져오기
+        SharedPreferences prefs = getSharedPreferences("UserPrefs", MODE_PRIVATE);
+        String userId = prefs.getString("username", "");
+
+        // 울음 감지 서비스 시작
+        Intent serviceIntent = new Intent(this, CryAlertService.class);
+        serviceIntent.putExtra("userId", userId);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (mediaPlayer != null) mediaPlayer.play();
+
+        if (mediaPlayer != null) {
+            mediaPlayer.play();
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        if (mediaPlayer != null) mediaPlayer.pause();
+
+        if (mediaPlayer != null) {
+            mediaPlayer.pause();
+        }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+
         if (mediaPlayer != null) {
             mediaPlayer.release();
             mediaPlayer = null;
         }
+
         if (libVLC != null) {
             libVLC.release();
             libVLC = null;

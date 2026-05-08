@@ -43,7 +43,8 @@ dependencies {
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
     implementation 'com.squareup.okhttp3:logging-interceptor:4.10.0'
-
+// Socket.io
+    implementation 'io.socket:socket.io-client:2.1.0'
     // 스트리밍 오류 >> vlc로 변경
     implementation 'org.videolan.android:libvlc-all:3.6.0'
 }

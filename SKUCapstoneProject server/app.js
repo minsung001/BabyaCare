@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
+const { Server } = require('socket.io');
 const cron = require('node-cron');
 const axios = require('axios');
 const path = require('path');
@@ -14,9 +15,30 @@ const sleepController = require('./src/controllers/sleepController');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
 
+// IoT 기기 통신용 (기존 유지)
+const wss = new WebSocket.Server({ server });
 app.set('wss', wss);
+
+// 안드로이드 알림 전용 socket.io
+const io = new Server(server, {
+  cors: { origin: '*' }
+});
+app.set('io', io);
+
+io.on('connection', (socket) => {
+  console.log('📱 안드로이드 연결됨:', socket.id);
+
+  // 안드로이드에서 로그인 후 userId로 등록
+  socket.on('register', (userId) => {
+    socket.join(userId);
+    console.log(`✅ [${userId}] 소켓 등록됨`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('📱 안드로이드 연결 끊김:', socket.id);
+  });
+});
 
 const PORT = process.env.PORT || 3001;
 
@@ -49,7 +71,6 @@ app.use('/api/sound-analysis', soundAnalysisRoutes);
 app.use('/api/ai', aiRouter);
 app.use('/api/temhu', temhuRoutes);
 
-//app.use('/stream', express.static(path.join(__dirname, 'public/stream')));
 app.use('/stream', (req, res, next) => {
     if (req.path.endsWith('.m3u8')) {
         res.setHeader('Content-Type', 'application/vnd.apple.mpegurl')
@@ -65,13 +86,13 @@ setInterval(() => {
     temhuController.saveBufferToDB(); 
 }, 30000);
 
-// ✅ 10분마다 수면점수 계산 → temperhumilities에 저장
+// 10분마다 수면점수 계산 → temperhumilities에 저장
 cron.schedule('*/10 * * * *', () => {
     console.log('⏰ [10분] 수면 점수 계산 및 저장 시작...');
     sleepController.processHourlyBatch();
 });
 
-// ✅ 1시간마다 수면 점수 집계
+// 1시간마다 수면 점수 집계
 cron.schedule('0 * * * *', () => {
     console.log('⏰ [Hourly] 1시간 단위 수면 점수 집계 시작...');
     sleepController.processHourlyBatch();
@@ -88,13 +109,10 @@ server.listen(PORT, async () => {
     try {
         await connectDB();
         console.log(`✅ MongoDB 연결 성공`);
-
         receiver.init(wss);
         console.log(`✅ WebSocket(Receiver) 초기화 성공`);
-
         axios.post(`http://localhost:${PORT}/api/video/start`).catch(() => {});
         axios.post(`http://localhost:${PORT}/api/sound-analysis/start`).catch(() => {});
-        
         console.log(`🚀 서버 가동 중: http://localhost:${PORT}`);
         console.log('⏳ 배치 작업 모드(10분/1시간/8시)가 활성화되었습니다.');
     } catch (err) {
