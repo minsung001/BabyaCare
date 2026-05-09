@@ -1,5 +1,6 @@
 const TemperHumility = require('../models/TemperHumility');
 
+
 const TEMP_HIGH = 28;
 const TEMP_LOW = 18;
 const RAPID_TEMP_CHANGE = 3;
@@ -267,3 +268,5 @@ exports.getSleepScoreHistory = async (req, res) => {
         });
     }
 };
+
+exports.getHistoryData = exports.getSleepScoreHistory;

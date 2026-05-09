@@ -455,4 +455,15 @@ public class AuthModels {
         @SerializedName("createdAt")
         public String createdAt;
     }
+    public static class SleepScoreHistoryResponse implements Serializable {
+
+        @SerializedName("userId")
+        public String userId;
+
+        @SerializedName("score")
+        public float score;
+
+        @SerializedName("time")
+        public String time;
+    }
 }
