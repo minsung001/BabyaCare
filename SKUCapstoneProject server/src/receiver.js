@@ -110,10 +110,8 @@ const hlsProcess = spawn('ffmpeg', [
     stdio: ['pipe', 'pipe', 'pipe']
 })
 
-// ✅ userId를 함께 받아서 soundAnalysisController에 주입
-function init(wssInstance, userId) {
+function init(wssInstance) {
     wss = wssInstance
-    soundAnalysisController.setUserId(userId)
     udpServer.bind(UDP_PORT, () => {
         console.log(`📡 UDP 수신 대기 중 (${UDP_PORT})`)
     })

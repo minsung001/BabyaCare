@@ -12,6 +12,7 @@ const receiver = require('./src/receiver');
 
 const temhuController = require('./src/controllers/TemhuController');
 const sleepController = require('./src/controllers/sleepController');
+const soundAnalysisController = require('./src/controllers/soundAnalysisController');
 
 const app = express();
 const server = http.createServer(app);
@@ -36,6 +37,8 @@ io.on('connection', (socket) => {
   socket.on('register', (userId) => {
     socket.join(userId);
     console.log(`✅ [${userId}] 소켓 등록됨`);
+    // ✅ Android 연결 시 userId를 soundAnalysisController에 주입
+    soundAnalysisController.setUserId(userId);
   });
 
   socket.on('disconnect', () => {
@@ -134,12 +137,13 @@ setInterval(() => {
 
 cron.schedule(CRON_SLEEP_BATCH, () => {
   console.log('⏰ [배치] 수면 점수 계산');
-  sleepController.processHourlyBatch(process.env.DEFAULT_USER_ID);
+  // ✅ Android register 이벤트에서 주입된 userId 사용
+  sleepController.processHourlyBatch(soundAnalysisController.userId);
 });
 
 cron.schedule(CRON_SLEEP_HOURLY, () => {
   console.log('⏰ [1시간] 수면 점수 집계');
-  sleepController.processHourlyBatch(process.env.DEFAULT_USER_ID);
+  sleepController.processHourlyBatch(soundAnalysisController.userId);
 });
 
 cron.schedule(CRON_DAILY_REPORT, () => {
@@ -158,13 +162,8 @@ server.listen(PORT, HOST, async () => {
         await connectDB();
         console.log(`✅ MongoDB 연결 성공`);
 
-        const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID;
-        if (!DEFAULT_USER_ID) {
-            throw new Error('DEFAULT_USER_ID 환경변수가 설정되지 않았습니다.');
-        }
-
-        receiver.init(wss, DEFAULT_USER_ID);
-        console.log(`✅ WebSocket(Receiver) 초기화 성공 (userId: ${DEFAULT_USER_ID})`);
+        receiver.init(wss);
+        console.log(`✅ WebSocket(Receiver) 초기화 성공`);
         axios.post(`${BASE_URL}/api/video/start`).catch(() => {});
         axios.post(`${BASE_URL}/api/sound-analysis/start`).catch(() => {});
 
@@ -173,7 +172,7 @@ server.listen(PORT, HOST, async () => {
 
     } catch (err) {
         console.error("❌ 서버 초기화 중 오류 발생:", err.message);
-        process.exit(1); // 쿠버네티스 restartPolicy에 의해 재시작됨
+        process.exit(1);
     }
 
     console.log('==============================================');
