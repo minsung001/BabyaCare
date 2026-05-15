@@ -96,7 +96,8 @@ public class MainActivity extends AppCompatActivity {
             public void onFailure(Call<AuthModels.UserResponse> call, Throwable t) {
                 Log.e(TAG, "Login Network Error: " + t.getMessage());
                 Toast.makeText(MainActivity.this, "서버 연결 실패", Toast.LENGTH_SHORT).show();
-                //테스트용
+
+                // 테스트용: 서버가 꺼져 있어도 메뉴로 진입 가능하게 처리
                 Intent intent = new Intent(MainActivity.this, Menuactivity.class);
                 startActivity(intent);
                 finish();
@@ -108,14 +109,15 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences pref = getSharedPreferences("UserPrefs", MODE_PRIVATE);
         SharedPreferences.Editor editor = pref.edit();
 
-        editor.putString("userEmail", username);
+        editor.putString("username", username);      // ✅ "username" 키로 통일
+        editor.putString("userEmail", username);     // ✅ 기존 코드 호환용 유지
         editor.putString("accessToken", accessToken);
         editor.putString("refreshToken", refreshToken);
 
         editor.apply();
 
         Log.d(TAG, "세션 저장 완료");
-        Log.d(TAG, "userEmail(username) = " + username);
+        Log.d(TAG, "username = " + username);
         Log.d(TAG, "accessToken = " + accessToken);
         Log.d(TAG, "refreshToken = " + refreshToken);
     }

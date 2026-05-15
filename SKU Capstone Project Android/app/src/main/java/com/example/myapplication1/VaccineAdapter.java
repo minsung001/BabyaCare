@@ -8,7 +8,6 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
 
-// 리사이클러뷰와 데이터를 연결해주는 어댑터 클래스입니다.
 public class VaccineAdapter extends RecyclerView.Adapter<VaccineAdapter.ViewHolder> {
 
     private List<AuthModels.VaccineResponse> vaccineList;
@@ -20,9 +19,9 @@ public class VaccineAdapter extends RecyclerView.Adapter<VaccineAdapter.ViewHold
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        // 안드로이드 기본 레이아웃(simple_list_item_2)을 사용하여 간단하게 구현합니다.
+        // 안드로이드 기본 레이아웃 대신, 우리가 만든 item_vaccine을 인플레이트합니다.
         View view = LayoutInflater.from(parent.getContext())
-                .inflate(android.R.layout.simple_list_item_2, parent, false);
+                .inflate(R.layout.item_vaccine, parent, false);
         return new ViewHolder(view);
     }
 
@@ -30,12 +29,12 @@ public class VaccineAdapter extends RecyclerView.Adapter<VaccineAdapter.ViewHold
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         AuthModels.VaccineResponse item = vaccineList.get(position);
 
-        // 상단 텍스트: 백신 이름과 회차
-        holder.text1.setText(item.name + " (" + item.degree + "차)");
+        // 1. 백신 이름과 회차 (예: B형간염 2차)
+        holder.tvVaccineName.setText(item.name + " (" + item.degree + "차)");
 
-        // 하단 텍스트: 예정일과 D-Day 정보
+        // 2. 날짜 및 D-Day 텍스트 구성
         String dDayText = (item.dDay >= 0) ? " (D-" + item.dDay + ")" : " (기간 지남)";
-        holder.text2.setText("접종 예정일: " + item.dueDate + dDayText);
+        holder.tvVaccineDate.setText(item.dueDate + dDayText);
     }
 
     @Override
@@ -44,13 +43,14 @@ public class VaccineAdapter extends RecyclerView.Adapter<VaccineAdapter.ViewHold
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        public TextView text1;
-        public TextView text2;
+        public TextView tvVaccineName;
+        public TextView tvVaccineDate;
 
         public ViewHolder(View itemView) {
             super(itemView);
-            text1 = itemView.findViewById(android.R.id.text1);
-            text2 = itemView.findViewById(android.R.id.text2);
+            // item_vaccine.xml에서 설정한 ID로 연결합니다.
+            tvVaccineName = itemView.findViewById(R.id.tvVaccineName);
+            tvVaccineDate = itemView.findViewById(R.id.tvVaccineDate);
         }
     }
 }

@@ -2,109 +2,186 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
-const cron = require('node-cron'); // ✅ 설치 필요: npm install node-cron
+const { Server } = require('socket.io');
+const cron = require('node-cron');
 const axios = require('axios');
 const path = require('path');
 
-// ==========================================
-// 🛠️ DB 및 핵심 컨트롤러 불러오기 (경로 수정 완료)
-// ==========================================
-// 이미지(image_a7c4f7.png) 구조에 맞춰 경로를 './src/...'로 수정했습니다.
-const { connectDB } = require('./src/db'); 
-const receiver = require('./src/receiver'); 
+const { connectDB } = require('./src/db');
+const receiver = require('./src/receiver');
 
+const soundAnalysisController = require('./src/controllers/soundAnalysisController')
+const videoController = require('./src/controllers/videoController')
 const temhuController = require('./src/controllers/TemhuController');
-const sleepController = require('./src/controllers/sleepController'); 
+const sleepController = require('./src/controllers/sleepController');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
 
+// =========================================================
+// WebSocket (IoT device)
+// =========================================================
+const wss = new WebSocket.Server({ server });
 app.set('wss', wss);
 
-const PORT = process.env.PORT || 3001;
+// =========================================================
+// Socket.IO (Android realtime)
+// =========================================================
+const io = new Server(server, {
+  cors: { origin: process.env.CORS_ORIGIN || '*' }
+});
+app.set('io', io);
 
-// 영상 및 분석 데이터 처리를 위한 용량 제한 확장
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+io.on('connection', (socket) => {
+  console.log('📱 안드로이드 연결됨:', socket.id);
 
-// ==========================================
-// 📥 요청 로그 확인용 미들웨어
-// ==========================================
-app.use((req, res, next) => {
-    console.log("==============================================");
-    console.log("📥 요청 들어옴:", req.method, req.originalUrl);
-    next();
+  socket.on('register', (userId) => {
+    socket.join(userId);
+    console.log(`✅ [${userId}] 소켓 등록됨`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('📱 안드로이드 연결 끊김:', socket.id);
+  });
 });
 
-// ==========================================
-// 🚀 라우터(Router) 설정 구역
-// ==========================================
+// =========================================================
+// Middleware
+// =========================================================
+const PORT = process.env.PORT || 3001;
+const HOST = process.env.HOST || '0.0.0.0';
+const REQUEST_LIMIT = process.env.REQUEST_LIMIT || '50mb';
+
+// 🔥 도커/내부 호출용 URL
+const BASE_URL = process.env.INTERNAL_API_URL || `http://127.0.0.1:${PORT}`;
+
+app.use(express.json({ limit: REQUEST_LIMIT }));
+app.use(express.urlencoded({ limit: REQUEST_LIMIT, extended: true }));
+
+app.use((req, res, next) => {
+  console.log("==============================================");
+  console.log("📥 요청:", req.method, req.originalUrl);
+  next();
+});
+
+// =========================================================
+// ROUTES
+// =========================================================
+
+// HEALTH CHECK
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'healthy' });
+});
+
+// AUTH
 const authRouter = require('./src/routes/authRoutes');
+app.use('/auth', authRouter);
+
+// DATA
 const policyRouter = require('./src/routes/policyRoutes');
 const vaccineRouter = require('./src/routes/vaccineRoutes');
+
+app.use('/api/policies', policyRouter);
+app.use('/api/vaccine', vaccineRouter);
+
+// SENSOR
+const temhuRoutes = require('./src/routes/temhuRoutes');
 const sleepRoutes = require('./src/routes/sleepRoutes');
+
+app.use('/api/temhu', temhuRoutes);
+app.use('/api/sleep', sleepRoutes);
+
+// SMARTTHINGS
 const smartThingsRouter = require('./src/routes/smartThingsRoutes');
+app.use('/api/smartthings', smartThingsRouter);
+
+// AI
+const aiRouter = require('./src/routes/airouter');
+app.use('/api/ai', aiRouter);
+
+// OTHER
 const videoRoutes = require('./src/routes/videoRoutes');
 const soundAnalysisRoutes = require('./src/routes/soundAnalysisRoutes');
-const aiRouter = require('./src/routes/airouter');
-const temhuRoutes = require('./src/routes/temhuRoutes');
 
-app.use('/auth', authRouter);
-app.use('/api/policies', policyRouter);
-app.use('/api/vaccines', vaccineRouter);
-app.use('/api/Sleep', sleepRoutes);
-app.use('/api/SmartThings', smartThingsRouter);
 app.use('/api/video', videoRoutes);
 app.use('/api/sound-analysis', soundAnalysisRoutes);
-app.use('/api/ai', aiRouter);
-app.use('/api/temhu', temhuRoutes);
 
-// HLS 스트리밍 파일 서빙
-app.use('/stream', express.static(path.join(__dirname, 'public/stream')));
+// =========================================================
+// STREAM
+// =========================================================
+const HLS_DIR = process.env.HLS_DIR || path.resolve(__dirname, 'public/stream');
 
-// ==========================================
-// ⚙️ 백그라운드 스케줄러 (Cron Jobs)
-// ==========================================
+app.use('/stream', (req, res, next) => {
+  if (req.path.endsWith('.m3u8')) {
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+  } else if (req.path.endsWith('.ts')) {
+    res.setHeader('Content-Type', 'video/mp2t');
+  }
+  next();
+}, express.static(HLS_DIR));
 
-// 1. 30초마다 온습도 데이터 버퍼를 DB에 일괄 적재
-setInterval(() => {
-    // Controller에 정의된 함수명에 맞춰 호출하세요 (receiveSensorData 아님)
-    temhuController.saveBufferToDB(); 
-}, 30000);
+// =========================================================
+// CRON JOBS
+// =========================================================
 
-// 2. 매 시 정각(0분 0초): 지난 1시간 데이터 요약 및 수면 점수 산출
-cron.schedule('0 0 * * * *', () => {
-    console.log('⏰ [Hourly] 1시간 단위 수면 점수 집계 시작...');
-    sleepController.processHourlyScore();
+const BUFFER_SAVE_INTERVAL_MS = parseInt(process.env.BUFFER_SAVE_INTERVAL_MS) || 30000;
+const CRON_SLEEP_BATCH     = process.env.CRON_SLEEP_BATCH     || '*/10 * * * *';
+const CRON_SLEEP_HOURLY    = process.env.CRON_SLEEP_HOURLY    || '0 * * * *';
+const CRON_DAILY_REPORT    = process.env.CRON_DAILY_REPORT    || '0 8 * * *';
+
+// setInterval(() => {
+//   temhuController.saveBufferToDB();
+// }, BUFFER_SAVE_INTERVAL_MS);
+
+cron.schedule(CRON_SLEEP_BATCH, () => {
+  console.log('⏰ [배치] 수면 점수 계산');
+  sleepController.processHourlyBatch(process.env.DEFAULT_USER_ID);
 });
 
-// 3. 매일 아침 8시 정각: GPT 상황 요약 리포트 생성
-cron.schedule('0 0 8 * * *', () => {
-    console.log('🌅 [Daily] 아침 8시! GPT 수면 상황 요약 생성 중...');
-    sleepController.generateDailyComprehensiveReport();
+cron.schedule(CRON_SLEEP_HOURLY, () => {
+  console.log('⏰ [1시간] 수면 점수 집계');
+  sleepController.processHourlyBatch(process.env.DEFAULT_USER_ID);
 });
 
-// ==========================================
-// 🏁 서버 실행 및 초기화 로직
-// ==========================================
-server.listen(PORT, async () => {
+cron.schedule(CRON_DAILY_REPORT, () => {
+  console.log('🌅 [AI] 일일 리포트 생성');
+  sleepController.generateDailyComprehensiveReport();
+});
+
+// =========================================================
+// SERVER START
+// =========================================================
+
+server.listen(PORT, HOST, async () => {
     console.log('==============================================');
+
     try {
-        await connectDB(); // DB 연결 대기
+        await connectDB();
         console.log(`✅ MongoDB 연결 성공`);
 
-        receiver.init(wss); // WebSocket 초기화
-        console.log(`✅ WebSocket(Receiver) 초기화 성공`);
+        const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID;
+        if (!DEFAULT_USER_ID) {
+            throw new Error('DEFAULT_USER_ID 환경변수가 설정되지 않았습니다.');
+        }
 
-        // 초기 구동 시 필요한 시작 요청
-        axios.post(`http://localhost:${PORT}/api/video/start`).catch(() => {});
-        axios.post(`http://localhost:${PORT}/api/sound-analysis/start`).catch(() => {});
-        
-        console.log(`🚀 서버 가동 중: http://localhost:${PORT}`);
-        console.log('⏳ 배치 작업 모드(30초/1시간/8시)가 활성화되었습니다.');
+        //io 때문에 필요할 것 같아서
+        soundAnalysisController.setApp(app)
+        temhuController.setApp(app)
+        videoController.setApp(app)
+
+        receiver.init(wss, DEFAULT_USER_ID);
+        console.log(`✅ WebSocket(Receiver) 초기화 성공 (userId: ${DEFAULT_USER_ID})`);
+        axios.post(`${BASE_URL}/api/video/start`).catch(() => {});
+        axios.post(`${BASE_URL}/api/sound-analysis/start`).catch(() => {});
+
+        console.log(`🚀 서버 가동 중: http://${HOST}:${PORT}`);
+        console.log(`🔗 내부 BASE_URL: ${BASE_URL}`);
+
     } catch (err) {
         console.error("❌ 서버 초기화 중 오류 발생:", err.message);
+        process.exit(1); // 쿠버네티스 restartPolicy에 의해 재시작됨
     }
+
     console.log('==============================================');
 });

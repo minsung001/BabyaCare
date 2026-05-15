@@ -4,6 +4,7 @@ from mediapipe.tasks.python.vision import FaceLandmarker, FaceLandmarkerOptions,
 from mediapipe.tasks.python.core.base_options import BaseOptions
 from ultralytics import YOLO
 from collections import Counter
+import cv2
 
 try:
     import config
@@ -15,6 +16,7 @@ except ImportError:
     config = DummyConfig()
 
 from ..utils import get_roi_2
+
 
 class VideoEngine:
     def __init__(self):
@@ -30,7 +32,15 @@ class VideoEngine:
 
         # YOLO 초기화
         self.yolo_model = YOLO(str(config.YOLO_MODEL))
+        
+        self.baby_yolo_model = YOLO("models/희수님모델.pt")
+
         print("✅ [VideoEngine] 모델 로드 완료")
+
+        # 추후 매핑값으로 변경해 사용
+        camera_points = np.float32([[0,0], [1280,0], [0,720], [1280,720]])
+        thermal_points = np.float32([[0,0], [32,0], [0,24], [32,24]])
+        self.H, _ = cv2.findHomography(camera_points, thermal_points)
 
     def analyze(self, batch_frames):
         """10장의 프레임을 받아서 mediapipe + YOLO 분석"""
@@ -128,6 +138,62 @@ class VideoEngine:
                 "infant_detected": False,
                 "confidence": 0.0,
                 "cheek_area": None
+            }
+
+        except Exception as e:
+            print(f"❌ [VideoEngine] 분석 에러: {e}")
+            return {"infant_detected": False, "error": str(e)}
+
+
+
+    def analyze2(self, batch_frames, thermal_frame):
+        """10장의 프레임으로 YOLO bbox 추출"""
+        try:
+            h, w, _ = batch_frames[0].shape
+            
+            bbox_list = []
+            
+            for frame in batch_frames:
+                results = self.baby_yolo_model(frame, verbose=False)
+                
+                if len(results[0].boxes) == 0:
+                    continue
+                
+                best_box = max(results[0].boxes, key=lambda b: float(b.conf[0].item()))
+                b = best_box.xyxy[0].tolist()
+                bbox_list.append([int(b[0]), int(b[1]), int(b[2]), int(b[3])])
+            
+            if not bbox_list:
+                return {
+                    "infant_detected": False,
+                    "confidence": 0.0,
+                    "bbox": None
+                }
+            
+            # 10장 union (가장 넓게 잡기)
+            x1 = min(b[0] for b in bbox_list)
+            y1 = min(b[1] for b in bbox_list)
+            x2 = max(b[2] for b in bbox_list)
+            y2 = max(b[3] for b in bbox_list)
+            
+            estimated_temp = None
+            if thermal_frame is not None:
+                pts = np.float32([[x1,y1], [x2,y1], [x1,y2], [x2,y2]]).reshape(-1,1,2)
+                dst = cv2.perspectiveTransform(pts, self.H)
+                tx1, ty1 = int(dst[0][0][0]), int(dst[0][0][1])
+                tx2, ty2 = int(dst[3][0][0]), int(dst[3][0][1])
+
+                # 열화상 배열에서 해당 영역 추출
+                region = thermal_frame[ty1:ty2, tx1:tx2]
+                temps = region[(region >= 34.0) & (region <= 40.0)]
+                if len(temps) > 0:
+                    estimated_temp = round(float(np.mean(temps)), 2)
+
+            return {
+                "infant_detected": True,
+                "confidence": round(len(bbox_list) / len(batch_frames), 4),
+                "bbox": [x1, y1, x2, y2],
+                "thermal": estimated_temp
             }
 
         except Exception as e:

@@ -2,15 +2,21 @@ const dgram = require('dgram')
 const { spawn } = require('child_process')
 const path = require('path')
 const fs = require('fs')
+const mqtt = require('mqtt')
 
 //8888포트로 들어온 영상 중 프레임만 비디오컨트롤러로 보내기 위함
 const videoController = require('./controllers/videoController')
 const soundAnalysisController = require('./controllers/soundAnalysisController')
+const temhuController = require('./controllers/TemhuController')
 
 let wss
 
 // HLS 파일 저장 폴더 생성
-const hlsDir = path.join(__dirname, '../public/stream')
+const UDP_PORT = parseInt(process.env.UDP_PORT) || 8888
+const HLS_DIR  = process.env.HLS_DIR || path.resolve(__dirname, '../public/stream')
+const hlsDir   = HLS_DIR
+const CAMERA_TIMEOUT_MS = parseInt(process.env.CAMERA_TIMEOUT_MS) || 5000
+
 if (!fs.existsSync(hlsDir)) {
     fs.mkdirSync(hlsDir, { recursive: true })
 } else {
@@ -27,10 +33,6 @@ let lastMessageTime = Date.now()
 udpServer.on('message', (msg) => {
     lastMessageTime = Date.now()
 
-    // 영상/오디오 분석하기 위해 분리해서 넣어주기 때문에
-    // 스트리밍은 따로 분리하는 쪽이 좋을 것
-    //streamController.onPacket(msg)
-
     // ffmpeg으로 영상/오디오 분리 (분석용)
     ffmpegProcess.stdin.write(msg)
 
@@ -38,16 +40,16 @@ udpServer.on('message', (msg) => {
     hlsProcess.stdin.write(msg)
 })
 
-// 5초 이상 데이터 없으면 HLS 파일 삭제 (카메라 끊김 감지)
+// CAMERA_TIMEOUT_MS 이상 데이터 없으면 HLS 파일 삭제 (카메라 끊김 감지)
 setInterval(() => {
-    if (Date.now() - lastMessageTime > 5000) {
+    if (Date.now() - lastMessageTime > CAMERA_TIMEOUT_MS) {
         if (fs.existsSync(hlsDir)) {
             fs.readdirSync(hlsDir).forEach(file => {
                 fs.unlinkSync(path.join(hlsDir, file))
             })
         }
     }
-}, 5000)
+}, CAMERA_TIMEOUT_MS)
 
 udpServer.on('error', (err) => {
     console.error('UDP 에러:', err)
@@ -57,6 +59,7 @@ udpServer.on('error', (err) => {
 // ffmpeg 프로세스 (분석용 - 영상/오디오 분리)
 const ffmpegProcess = spawn('ffmpeg', [
     '-fflags', '+discardcorrupt',  // 추가
+    '-f', 'mpegts',
     '-i', 'pipe:0',
     '-map', '0:v',
     '-f', 'rawvideo',
@@ -91,22 +94,54 @@ ffmpegProcess.stdio[3].on('data', (audioChunk) => {
 
 // HLS용 ffmpeg
 const hlsProcess = spawn('ffmpeg', [
+    '-f', 'mpegts',
     '-i', 'pipe:0',
     '-c:v', 'copy',                              // 재인코딩 없음
     '-c:a', 'copy',                              // 재인코딩 없음
     '-f', 'hls',
     '-hls_time', '2',                            // 2초짜리 조각
-    '-hls_list_size', '3',                       // 최근 3개 조각만 유지
-    '-hls_flags', 'delete_segments',             // 오래된 파일 자동 삭제
+    '-hls_list_size', '5',                       // 최근 3개 조각만 유지
+    '-hls_flags', 'delete_segments+append_list', // 오래된 파일 자동 삭제
+    '-hls_allow_cache', '0',                     // 캐시 비활성화
+    '-hls_segment_filename', path.join(hlsDir, 'streamingfile%d.ts'),
     path.join(hlsDir, 'streamingfile.m3u8')
 ], {
     stdio: ['pipe', 'pipe', 'pipe']
 })
 
-function init(wssInstance) {
+// MQTT 연결 (열화상, 온습도 수신)
+const mqttClient = mqtt.connect(`mqtt://${process.env.MQTT_HOST || 'localhost'}:1883`)
+
+mqttClient.on('connect', () => {
+    mqttClient.subscribe('baby/thermal')
+    mqttClient.subscribe('baby/environment')
+    console.log('📡 MQTT 연결됨')
+})
+
+mqttClient.on('message', (topic, message) => {
+    const data = JSON.parse(message.toString())
+    if (topic === 'baby/thermal') {
+        // 열화상 → 영상 분석 트리거
+        // 테스트용으로 적어둔 것 > videoController.onThermal(data) 부분만 남기면 됨
+        const avg = (data.frame.reduce((a, b) => a + b, 0) / data.frame.length).toFixed(2)
+        console.log('[MQTT] 열화상 수신:', data.timestamp, '프레임 길이:', data.frame.length, '평균온도:', avg)
+        videoController.onThermal(data)
+    } else if (topic === 'baby/environment') {
+        // 온습도
+        // 여기도 테스트용
+        console.log('[MQTT] 온습도 수신:', data.temperature, '°C', data.humidity, '%')
+        temhuController.onData(data)
+    }
+})
+
+// ✅ userId를 함께 받아서 soundAnalysisController에 주입
+function init(wssInstance, userId) {
     wss = wssInstance
-    udpServer.bind(8888, () => {
-        console.log('📡 UDP 수신 대기 중 (8888)')
+    soundAnalysisController.setUserId(userId)
+    temhuController.setUserId(userId)
+    videoController.setUserId(userId)
+    udpServer.bind(UDP_PORT, () => {
+        console.log(`📡 UDP 수신 대기 중 (${UDP_PORT})`)
     })
 }
 

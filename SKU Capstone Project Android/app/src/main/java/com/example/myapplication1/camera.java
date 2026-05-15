@@ -1,15 +1,21 @@
 package com.example.myapplication1;
 
+import android.net.Uri;
 import android.os.Bundle;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.media3.common.MediaItem;
-import androidx.media3.exoplayer.ExoPlayer;
-import androidx.media3.ui.PlayerView;
+
+import org.videolan.libvlc.LibVLC;
+import org.videolan.libvlc.Media;
+import org.videolan.libvlc.MediaPlayer;
+import org.videolan.libvlc.util.VLCVideoLayout;
+
+import java.util.ArrayList;
 
 public class camera extends AppCompatActivity {
 
-    private ExoPlayer player;
+    private LibVLC libVLC;
+    private MediaPlayer mediaPlayer;
     private TextView statusText;
 
     @Override
@@ -18,25 +24,45 @@ public class camera extends AppCompatActivity {
         setContentView(R.layout.activity_camera);
 
         statusText = findViewById(R.id.statusText);
-        PlayerView playerView = findViewById(R.id.playerView);
+        VLCVideoLayout playerView = findViewById(R.id.playerView);
 
-        player = new ExoPlayer.Builder(this).build();
-        playerView.setPlayer(player);
+        ArrayList<String> options = new ArrayList<>();
+        options.add("--network-caching=150");
+        options.add("--live-caching=150");
+        options.add("--clock-jitter=0");
+        options.add("--clock-synchro=0");
+        options.add("--video-filter=transform");
+        options.add("--transform-type=90");
 
-        MediaItem mediaItem = MediaItem.fromUri("http://10.0.2.2:3001/stream/streamingfile.m3u8");
-        player.setMediaItem(mediaItem);
-        player.prepare();
-        player.play();
+        libVLC = new LibVLC(this, options);
+        mediaPlayer = new MediaPlayer(libVLC);
+        mediaPlayer.attachViews(playerView, null, false, false);
+
+        Media media = new Media(libVLC, Uri.parse("http://10.0.2.2:3001/stream/streamingfile.m3u8"));
+        media.setHWDecoderEnabled(true, false);
+        mediaPlayer.setMedia(media);
+        media.release();
+        mediaPlayer.play();
 
         statusText.setText("Live Streaming");
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (mediaPlayer != null) mediaPlayer.play();
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (player != null) {
-            player.release();
-            player = null;
+        if (mediaPlayer != null) {
+            mediaPlayer.release();
+            mediaPlayer = null;
+        }
+        if (libVLC != null) {
+            libVLC.release();
+            libVLC = null;
         }
     }
 }

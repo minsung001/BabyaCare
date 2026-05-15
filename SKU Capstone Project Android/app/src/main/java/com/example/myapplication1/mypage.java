@@ -114,7 +114,7 @@ public class mypage extends AppCompatActivity {
     }
 
     private void loadRegisteredDevices() {
-        apiService.getRegisteredDevices(jwtToken, loginUserEmail).enqueue(new Callback<AuthModels.DeviceResponse>() {
+        apiService.getDevices(jwtToken).enqueue(new Callback<AuthModels.DeviceResponse>() {
             @Override
             public void onResponse(Call<AuthModels.DeviceResponse> call, Response<AuthModels.DeviceResponse> response) {
                 if (response.isSuccessful() && response.body() != null) {

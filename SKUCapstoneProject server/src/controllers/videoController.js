@@ -2,34 +2,41 @@
  * videoController.js
  * 기능: 
  * 1. IoT 카메라 영상 수신 (onFrame)
- * 2. Android 기기로 실시간 UDP 영상 전송 (Low Latency)
+ * 2. udp 관련 제거 >> 스트리밍 방식 변경
  * 3. 30초마다 Flask 서버로 10프레임 묶어서 분석 요청 (이전 요청 완료 후 타이머 시작)
+ * 3_5. test > 열화상를 30초마다 수신, 분석 요청
  * 4. 분석 결과 Android 클라이언트(WebSocket) 브로드캐스트
  */
 
 const axios = require('axios');
-const dgram = require('dgram'); // UDP 통신용
 const sharp = require('sharp'); // 이미지 리사이징 및 압축용
+const { VideoAnalysis } = require('../models/videoanalysis'); // DB 저장용
+
+
 
 class VideoController {
     constructor() {
         this.currentFrame = null;
         this.frameTimestamp = null;
-        this.analysisInterval = 30000; // ✅ 10초 → 30초로 변경 (서버 부하 감소)
-        this.analysisIntervalId = null;
         this.isAnalyzing = false;      // ✅ 요청 중복 실행 방지 플래그
         this.androidClients = new Set(); // WebSocket 클라이언트 관리
         this.flaskServerUrl = process.env.FLASK_SERVER_URL || 'http://127.0.0.1:5000';
         this.analysisResults = [];
         this.frameBuffer = []; // 분석용 10장 버퍼
-
-        // -----------------------------------------------------------
-        // ✅ [UDP 설정] 안드로이드 실시간 스트리밍용
-        // -----------------------------------------------------------
-        this.udpSocket = dgram.createSocket('udp4');
-        this.androidUdpIp = '192.168.0.10'; // 👈 실제 안드로이드폰 IP로 반드시 수정!
-        this.androidUdpPort = 5005;        // 👈 안드로이드 수신 포트 번호
+        this.latestThermal = null;
+        this.isRunning = false;
     }
+
+  // ✅ server.js에서 app 주입 (io 접근용)
+  setApp(app) {
+    this.app = app;
+  }
+
+  // ✅ receiver.init()에서 userId 주입
+  setUserId(userId) {
+    this.userId = userId;
+    console.log(`[videoController] userId 설정됨: ${userId}`);
+  }
 
     /**
      * receiver.js에서 8888포트로 들어온 영상을 프레임 단위로 받음
@@ -41,49 +48,29 @@ class VideoController {
 
         // 1. 분석용 버퍼링 (최근 10장 유지)
         this.frameBuffer.push(videoFrame);
-        if (this.frameBuffer.length > 10) {
+        if (this.frameBuffer.length > 1) {
             this.frameBuffer.shift();
         }
 
-        // 2. ✅ [핵심] 안드로이드로 실시간 영상 쏴주기 (UDP)
-        this.sendVideoToAndroid(videoFrame);
     }
 
-    /**
-     * 실시간 영상을 JPEG로 압축하여 안드로이드로 UDP 전송
-     */
-    async sendVideoToAndroid(rawFrame) {
-        try {
-            // raw 데이터(2.7MB)는 너무 커서 UDP 전송이 불가능하므로 압축 필수
-            const compressedBuffer = await sharp(rawFrame, {
-                raw: { width: 1280, height: 720, channels: 3 }
-            })
-            .resize(640, 360)      // 전송 효율을 위해 해상도 축소
-            .jpeg({ quality: 60 })  // 용량을 줄이기 위해 품질 60으로 설정
-            .toBuffer();
-
-            // 안드로이드 기기로 전송
-            this.udpSocket.send(
-                compressedBuffer, 
-                0, 
-                compressedBuffer.length, 
-                this.androidUdpPort, 
-                this.androidUdpIp
-            );
-        } catch (error) {
-            // console.error('[UDP 전송 실패]', error.message);
+    onThermal(thermalData) {
+        // 열화상을 받고
+        this.latestThermal = thermalData;
+        
+        // start 요청이 있을 때만 분석 트리거
+        if (this.isRunning) {
+            this.requestFlaskAnalysis();
         }
     }
+
 
     /**
      * 분석 시작 명령 (라우터에서 호출)
      */
     async startAnalysis(req, res) {
         try {
-            if (this.analysisIntervalId !== null) {
-                return res.status(400).json({ message: '이미 분석이 진행 중입니다.' });
-            }
-            this.startFlaskAnalysis();
+            this.isRunning = true;
             res.json({ success: true, message: 'Flask 비디오 분석을 시작합니다.' });
         } catch (error) {
             res.status(500).json({ success: false, error: error.message });
@@ -95,36 +82,13 @@ class VideoController {
      */
     async stopAnalysis(req, res) {
         try {
-            if (this.analysisIntervalId !== null) {
-                clearTimeout(this.analysisIntervalId); // ✅ clearInterval → clearTimeout
-                this.analysisIntervalId = null;
-            }
+            this.isRunning = false;
             res.json({ success: true, message: '분석을 중지했습니다.' });
         } catch (error) {
             res.status(500).json({ success: false, error: error.message });
         }
     }
 
-    /**
-     * ✅ 이전 요청이 완전히 끝난 후에만 다음 요청을 예약 (setInterval → 재귀 setTimeout)
-     * - setInterval은 이전 요청이 오래 걸려도 무조건 다음 요청을 쌓아버림
-     * - setTimeout 재귀 방식은 응답을 받은 후 타이머를 시작하므로 요청 중첩 없음
-     */
-    startFlaskAnalysis() {
-        console.log('[VideoController] Flask 분석 프로세스 시작 (30초 간격, 중첩 방지)');
-
-        const scheduleNext = async () => {
-            await this.requestFlaskAnalysis();
-
-            // 중지 명령이 들어온 경우 다음 타이머 예약 안 함
-            if (this.analysisIntervalId === null) return;
-
-            this.analysisIntervalId = setTimeout(scheduleNext, this.analysisInterval);
-        };
-
-        // 최초 1회 즉시 실행 후 재귀 예약
-        this.analysisIntervalId = setTimeout(scheduleNext, 0);
-    }
 
     /**
      * Flask 서버로 10장의 프레임을 묶어서 분석 요청
@@ -137,7 +101,7 @@ class VideoController {
         }
 
         try {
-            if (this.frameBuffer.length < 10) {
+            if (this.frameBuffer.length < 1) {
                 console.warn('[VideoController] 분석에 필요한 프레임 부족 (현재: ' + this.frameBuffer.length + ')');
                 return;
             }
@@ -157,7 +121,7 @@ class VideoController {
             // Flask로 POST 요청
             const response = await axios.post(
                 `${this.flaskServerUrl}/api/video/analyze`,
-                { frames, timestamp: this.frameTimestamp },
+                { frames, timestamp: this.frameTimestamp , thermal: this.latestThermal }, //32*24
                 { timeout: 30000, headers: { 'Content-Type': 'application/json' } }
             );
 
@@ -173,8 +137,29 @@ class VideoController {
             // 아기 감지 시 로그 출력
             if (response.data.data?.result?.infant_detected === true) {
                 console.log("🍼 [알림] 아기 감지 완료");
+                console.log("🌡️ [체온]", response.data.data?.result?.thermal);
             }
 
+            const result = response.data.data?.result;
+
+            // 분석 결과 DB 저장
+            // 타임 스탬프는 flask에 넘기는 시점에서 찍어도 되는데 
+            // 어차피 1분 안짝이라 크게 의미 없을것 같아서 일단 현재 시간
+            await VideoAnalysis.create({
+                timestamp: new Date(),
+                infantDetected: result?.infant_detected ?? false,
+                thermal: result?.thermal ?? null,
+                confidence: result?.confidence ?? null,
+                bbox: result?.bbox ? {
+                    x1: result.bbox[0],
+                    y1: result.bbox[1],
+                    x2: result.bbox[2],
+                    y2: result.bbox[3]
+                } : null
+            });
+
+
+            // 웹소켓으로 보내나요? 아니면 io로 통일하나요?
             // Android 클라이언트에게 WebSocket으로 결과 전송
             this.broadcastAnalysisResult(analysisResult);
         } catch (error) {

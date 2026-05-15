@@ -201,19 +201,5 @@
                     android:layout_height="200dp" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_gpt_report"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:text="AI 수면 분석 리포트 생성"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            app:backgroundTint="#1976D2"
-            app:cornerRadius="16dp"
-            app:iconGravity="textStart"
-            android:layout_marginBottom="24dp"/>
-
     </LinearLayout>
 </ScrollView>

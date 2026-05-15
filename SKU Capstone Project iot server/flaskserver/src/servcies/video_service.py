@@ -10,6 +10,7 @@ def process_video(data):
     try:
         frames_data = data.get("frames")  # base64 배열 10장
         camera_id = data.get("camera_id", "default_cam")
+        thermal_data = data.get("thermal")
 
         if not frames_data:
             return wrap_node_response(success=False, error="no frames data")
@@ -31,9 +32,17 @@ def process_video(data):
         if not frames:
             return wrap_node_response(success=False, error="frame decode failed")
 
+        # 열화상 2차원 변환 
+        # 2차원으로 정리해뒀으니 나중에 thermal_frame[y1:y2, x1:x2]로 슬라이싱 해 쓰기
+        thermal_frame = None
+        if thermal_data and thermal_data.get("frame"):
+            thermal_frame = np.array(thermal_data["frame"]).reshape(24, 32)
+        
         # 엔진으로 넘기기
-        result = engine.analyze(frames)
+        #result = engine.analyze(frames)
+        result = engine.analyze2(frames,thermal_frame)
 
+        # 같이 넘겨서 엔진쪽에서 계산
         if result is None:
             return wrap_node_response(success=True, data={"camera_id": camera_id, "status": "no_result"})
 
