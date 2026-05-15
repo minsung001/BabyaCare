@@ -1,4 +1,5 @@
 require('dotenv').config();
+
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -10,14 +11,10 @@ const path = require('path');
 const { connectDB } = require('./src/db');
 const receiver = require('./src/receiver');
 
-const soundAnalysisController = require('./src/controllers/soundAnalysisController')
-const videoController = require('./src/controllers/videoController')
+const soundAnalysisController = require('./src/controllers/soundAnalysisController');
+const videoController = require('./src/controllers/videoController');
 const temhuController = require('./src/controllers/TemhuController');
 const sleepController = require('./src/controllers/sleepController');
-<<<<<<< HEAD
-const soundAnalysisController = require('./src/controllers/soundAnalysisController');
-=======
->>>>>>> kgj
 
 const app = express();
 const server = http.createServer(app);
@@ -26,27 +23,33 @@ const server = http.createServer(app);
 // WebSocket (IoT device)
 // =========================================================
 const wss = new WebSocket.Server({ server });
+
 app.set('wss', wss);
 
 // =========================================================
 // Socket.IO (Android realtime)
 // =========================================================
 const io = new Server(server, {
-  cors: { origin: process.env.CORS_ORIGIN || '*' }
+  cors: {
+    origin: process.env.CORS_ORIGIN || '*'
+  }
 });
+
 app.set('io', io);
 
 io.on('connection', (socket) => {
+
   console.log('📱 안드로이드 연결됨:', socket.id);
 
   socket.on('register', (userId) => {
+
     socket.join(userId);
+
     console.log(`✅ [${userId}] 소켓 등록됨`);
-<<<<<<< HEAD
-    // ✅ Android 연결 시 userId를 soundAnalysisController에 주입
+
     soundAnalysisController.setUserId(userId);
-=======
->>>>>>> kgj
+    temhuController.setUserId(userId);
+    videoController.setUserId(userId);
   });
 
   socket.on('disconnect', () => {
@@ -60,8 +63,6 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
 const REQUEST_LIMIT = process.env.REQUEST_LIMIT || '50mb';
-
-// 🔥 도커/내부 호출용 URL
 const BASE_URL = process.env.INTERNAL_API_URL || `http://127.0.0.1:${PORT}`;
 
 app.use(express.json({ limit: REQUEST_LIMIT }));
@@ -89,14 +90,12 @@ app.use('/auth', authRouter);
 // DATA
 const policyRouter = require('./src/routes/policyRoutes');
 const vaccineRouter = require('./src/routes/vaccineRoutes');
-
 app.use('/api/policies', policyRouter);
 app.use('/api/vaccine', vaccineRouter);
 
 // SENSOR
 const temhuRoutes = require('./src/routes/temhuRoutes');
 const sleepRoutes = require('./src/routes/sleepRoutes');
-
 app.use('/api/temhu', temhuRoutes);
 app.use('/api/sleep', sleepRoutes);
 
@@ -111,72 +110,35 @@ app.use('/api/ai', aiRouter);
 // OTHER
 const videoRoutes = require('./src/routes/videoRoutes');
 const soundAnalysisRoutes = require('./src/routes/soundAnalysisRoutes');
-
 app.use('/api/video', videoRoutes);
 app.use('/api/sound-analysis', soundAnalysisRoutes);
 
 // =========================================================
 // STREAM
 // =========================================================
-const HLS_DIR = process.env.HLS_DIR || path.resolve(__dirname, 'public/stream');
+const HLS_DIR =
+  process.env.HLS_DIR ||
+  path.resolve(__dirname, 'public/stream');
 
-app.use('/stream', (req, res, next) => {
-  if (req.path.endsWith('.m3u8')) {
-    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-    res.setHeader('Cache-Control', 'no-cache, no-store');
-  } else if (req.path.endsWith('.ts')) {
-    res.setHeader('Content-Type', 'video/mp2t');
-  }
-  next();
-}, express.static(HLS_DIR));
-<<<<<<< HEAD
-
-// =========================================================
-// CRON JOBS
-// =========================================================
-
-const BUFFER_SAVE_INTERVAL_MS = parseInt(process.env.BUFFER_SAVE_INTERVAL_MS) || 30000;
-const CRON_SLEEP_BATCH     = process.env.CRON_SLEEP_BATCH     || '*/10 * * * *';
-const CRON_SLEEP_HOURLY    = process.env.CRON_SLEEP_HOURLY    || '0 * * * *';
-const CRON_DAILY_REPORT    = process.env.CRON_DAILY_REPORT    || '0 8 * * *';
-
-setInterval(() => {
-  temhuController.saveBufferToDB();
-}, BUFFER_SAVE_INTERVAL_MS);
-
-cron.schedule(CRON_SLEEP_BATCH, () => {
-  console.log('⏰ [배치] 수면 점수 계산');
-  // ✅ Android register 이벤트에서 주입된 userId 사용
-  sleepController.processHourlyBatch(soundAnalysisController.userId);
-=======
+app.use(
+  '/stream',
+  (req, res, next) => {
+    if (req.path.endsWith('.m3u8')) {
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Cache-Control', 'no-cache, no-store');
+    } else if (req.path.endsWith('.ts')) {
+      res.setHeader('Content-Type', 'video/mp2t');
+    }
+    next();
+  },
+  express.static(HLS_DIR)
+);
 
 // =========================================================
 // CRON JOBS
 // =========================================================
-
-const BUFFER_SAVE_INTERVAL_MS = parseInt(process.env.BUFFER_SAVE_INTERVAL_MS) || 30000;
-const CRON_SLEEP_BATCH     = process.env.CRON_SLEEP_BATCH     || '*/10 * * * *';
-const CRON_SLEEP_HOURLY    = process.env.CRON_SLEEP_HOURLY    || '0 * * * *';
-const CRON_DAILY_REPORT    = process.env.CRON_DAILY_REPORT    || '0 8 * * *';
-
-// setInterval(() => {
-//   temhuController.saveBufferToDB();
-// }, BUFFER_SAVE_INTERVAL_MS);
-
-cron.schedule(CRON_SLEEP_BATCH, () => {
-  console.log('⏰ [배치] 수면 점수 계산');
-  sleepController.processHourlyBatch(process.env.DEFAULT_USER_ID);
->>>>>>> kgj
-});
-
-cron.schedule(CRON_SLEEP_HOURLY, () => {
-  console.log('⏰ [1시간] 수면 점수 집계');
-<<<<<<< HEAD
-  sleepController.processHourlyBatch(soundAnalysisController.userId);
-=======
-  sleepController.processHourlyBatch(process.env.DEFAULT_USER_ID);
->>>>>>> kgj
-});
+const CRON_DAILY_REPORT =
+  process.env.CRON_DAILY_REPORT || '0 8 * * *';
 
 cron.schedule(CRON_DAILY_REPORT, () => {
   console.log('🌅 [AI] 일일 리포트 생성');
@@ -186,45 +148,32 @@ cron.schedule(CRON_DAILY_REPORT, () => {
 // =========================================================
 // SERVER START
 // =========================================================
-
 server.listen(PORT, HOST, async () => {
-    console.log('==============================================');
 
-    try {
-        await connectDB();
-        console.log(`✅ MongoDB 연결 성공`);
+  console.log('==============================================');
 
-<<<<<<< HEAD
-        receiver.init(wss);
-        console.log(`✅ WebSocket(Receiver) 초기화 성공`);
-=======
-        const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID;
-        if (!DEFAULT_USER_ID) {
-            throw new Error('DEFAULT_USER_ID 환경변수가 설정되지 않았습니다.');
-        }
+  try {
 
-        //io 때문에 필요할 것 같아서
-        soundAnalysisController.setApp(app)
-        temhuController.setApp(app)
-        videoController.setApp(app)
+    await connectDB();
+    console.log(`✅ MongoDB 연결 성공`);
 
-        receiver.init(wss, DEFAULT_USER_ID);
-        console.log(`✅ WebSocket(Receiver) 초기화 성공 (userId: ${DEFAULT_USER_ID})`);
->>>>>>> kgj
-        axios.post(`${BASE_URL}/api/video/start`).catch(() => {});
-        axios.post(`${BASE_URL}/api/sound-analysis/start`).catch(() => {});
+    soundAnalysisController.setApp(app);
+    temhuController.setApp(app);
+    videoController.setApp(app);
 
-        console.log(`🚀 서버 가동 중: http://${HOST}:${PORT}`);
-        console.log(`🔗 내부 BASE_URL: ${BASE_URL}`);
+    receiver.init(wss);
+    console.log(`✅ WebSocket(Receiver) 초기화 성공`);
 
-    } catch (err) {
-        console.error("❌ 서버 초기화 중 오류 발생:", err.message);
-<<<<<<< HEAD
-        process.exit(1);
-=======
-        process.exit(1); // 쿠버네티스 restartPolicy에 의해 재시작됨
->>>>>>> kgj
-    }
+    axios.post(`${BASE_URL}/api/video/start`).catch(() => {});
+    axios.post(`${BASE_URL}/api/sound-analysis/start`).catch(() => {});
 
-    console.log('==============================================');
+    console.log(`🚀 서버 가동 중: http://${HOST}:${PORT}`);
+    console.log(`🔗 내부 BASE_URL: ${BASE_URL}`);
+
+  } catch (err) {
+    console.error('❌ 서버 초기화 중 오류 발생:', err.message);
+    process.exit(1);
+  }
+
+  console.log('==============================================');
 });

@@ -5,72 +5,119 @@
 
 const axios = require('axios');
 const temhuController = require('./TemhuController');
-<<<<<<< HEAD
-=======
-//dB 저장용
+
+// dB 저장용
 const { SoundAnalysisResult } = require('../models/Soundanalysis');
->>>>>>> kgj
 
 class SoundAnalysisController {
+
   constructor() {
-    this.flaskServerUrl = process.env.FLASK_SERVER_URL || 'http://127.0.0.1:5000';
+
+    this.flaskServerUrl =
+      process.env.FLASK_SERVER_URL || 'http://127.0.0.1:5000';
+
     this.analysisResults = [];
     this.analysisHistory = [];
+
     this.audioBuffer = [];
+
     this.audioFlag = 0;
     this.silentCount = 0;
     this.notCryingCount = 0;
+
     this.isAnalyzing = false;
     this.isRunning = false;
+
     this.intervalId = null;
+
+    // 10분 noise 저장용 타이머
+    this.noiseIntervalId = null;
+
     this.app = null;
-    this.userId = null; // ✅ receiver.init()에서 주입받음
-<<<<<<< HEAD
-=======
+
+    // receiver.init()에서 주입받음
+    this.userId = null;
+
     this.dbSamples = [];
-    this.currentCryEvent = null; //울음상태
->>>>>>> kgj
+
+    // 울음 상태
+    this.currentCryEvent = null;
   }
 
-  // ✅ server.js에서 app 주입 (io 접근용)
+  // server.js에서 app 주입
   setApp(app) {
     this.app = app;
   }
 
-  // ✅ receiver.init()에서 userId 주입
+  // receiver.init()에서 userId 주입
   setUserId(userId) {
+
     this.userId = userId;
-    console.log(`[SoundAnalysisController] userId 설정됨: ${userId}`);
+
+    console.log(
+      `[SoundAnalysisController] userId 설정됨: ${userId}`
+    );
   }
 
   onAudio(audioChunk) {
+
     const samples = new Float32Array(audioChunk.buffer);
+
     this.audioBuffer.push(...samples);
+
     if (this.audioBuffer.length > 96000) {
-      this.audioBuffer.splice(0, this.audioBuffer.length - 96000);
+
+      this.audioBuffer.splice(
+        0,
+        this.audioBuffer.length - 96000
+      );
     }
   }
 
   calculateDb(samples) {
-    const rms = Math.sqrt(samples.reduce((s, x) => s + x * x, 0) / samples.length);
+
+    const rms = Math.sqrt(
+      samples.reduce((s, x) => s + x * x, 0)
+      / samples.length
+    );
+
     if (rms < 1e-10) return -100;
+
     return 20 * Math.log10(rms);
   }
 
   async startAudioAnalysis(req, res) {
+
     try {
+
       if (this.isRunning) {
-        return res.status(400).json({ message: '이미 실행 중' });
+
+        return res.status(400).json({
+          message: '이미 실행 중'
+        });
       }
+
       this.startLoop();
-      res.json({ success: true, message: '음성 분석 시작' });
+      this.startNoiseInterval();
+
+      res.json({
+        success: true,
+        message: '음성 분석 시작'
+      });
+
     } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
+
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
     }
   }
 
   async stopAudioAnalysis(req, res) {
+
     try {
+
       this.isRunning = false;
 
       if (this.intervalId !== null) {
@@ -78,41 +125,81 @@ class SoundAnalysisController {
         this.intervalId = null;
       }
 
+      if (this.noiseIntervalId !== null) {
+        clearInterval(this.noiseIntervalId);
+        this.noiseIntervalId = null;
+      }
+
       this.audioFlag = 0;
       this.silentCount = 0;
       this.notCryingCount = 0;
+      this.dbSamples = [];
 
-      res.json({ success: true, message: '음성 분석 중지' });
+      res.json({
+        success: true,
+        message: '음성 분석 중지'
+      });
+
     } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
+
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
     }
   }
 
+  // =========================================================
+  // 10분마다 평균 dB 계산 후 temperhumilities에 저장
+  // =========================================================
+  startNoiseInterval() {
+
+    this.noiseIntervalId = setInterval(async () => {
+
+      if (this.dbSamples.length === 0) return;
+
+      const avgDb =
+        this.dbSamples.reduce((a, b) => a + b, 0) /
+        this.dbSamples.length;
+
+      this.dbSamples = [];
+
+      console.log(
+        `[SoundAnalysisController] 10분 평균 dB: ${avgDb.toFixed(2)}`
+      );
+
+      if (this.userId) {
+        await temhuController.saveNoiseData(this.userId, avgDb);
+      } else {
+        console.warn('[SoundAnalysisController] userId 없어서 noise 저장 불가');
+      }
+
+    }, 10 * 60 * 1000);
+  }
+
   startLoop() {
+
     this.isRunning = true;
 
     const loop = async () => {
+
       if (!this.isRunning) return;
 
       if (this.audioBuffer.length > 0) {
+
         const samples = new Float32Array(this.audioBuffer);
+
         const db = this.calculateDb(samples);
-        
+
         this.dbSamples.push(db);
 
-        if (this.dbSamples.length >= 600) {
-            const avgDb = this.dbSamples.reduce((a, b) => a + b, 0) / 600;
-            this.dbSamples = [];
-            // avgDb를 600번 마다(10분) 평균 내서 DB쪽에 저장하면 수면 점수 잴때 좋을것 같기는 한데
-            // 이렇게 타이머를 따로따로 돌리면 수면 점수 계산이랑 어긋날수도..
-            // 일단은 너무 자주 통계 내는건 안좋아 보여서 n분에 1번 이런식으로 해두긴 했는데
-            // 나중에 수면 점수 관련 타이머랑 같이 돌릴 수 있으면 좋고
-        }
-
         if (db > -40) {
+
           this.audioFlag = 1;
           this.silentCount = 0;
+
         } else {
+
           this.silentCount++;
         }
 
@@ -120,16 +207,25 @@ class SoundAnalysisController {
           await this.requestAudioFlaskAnalysis();
         }
 
-        if (this.silentCount >= 10 && this.notCryingCount >= 10) {
-          //
+        if (
+          this.silentCount >= 10 &&
+          this.notCryingCount >= 10
+        ) {
+
           if (this.currentCryEvent) {
-              // DB 수정 
-              await CryEvent.findByIdAndUpdate(this.currentCryEvent._id, {
-                  cry_end_Time: new Date()
-              });
-              this.currentCryEvent = null;
+
+            await SoundAnalysisResult.findByIdAndUpdate(
+              this.currentCryEvent._id,
+              { cry_end_Time: new Date() }
+            );
+
+            this.currentCryEvent = null;
           }
-          console.log('[SoundAnalysisController] 조용해짐. audioFlag 0으로 변경');
+
+          console.log(
+            '[SoundAnalysisController] 조용해짐. audioFlag 0으로 변경'
+          );
+
           this.audioFlag = 0;
           this.silentCount = 0;
           this.notCryingCount = 0;
@@ -145,17 +241,23 @@ class SoundAnalysisController {
   }
 
   async requestAudioFlaskAnalysis() {
+
     try {
+
       this.isAnalyzing = true;
 
-      const buffer = Buffer.from(new Float32Array(this.audioBuffer).buffer);
+      const buffer = Buffer.from(
+        new Float32Array(this.audioBuffer).buffer
+      );
 
       const response = await axios.post(
         `${this.flaskServerUrl}/api/audio/analyze`,
         buffer,
         {
           timeout: 60000,
-          headers: { 'Content-Type': 'application/octet-stream' }
+          headers: {
+            'Content-Type': 'application/octet-stream'
+          }
         }
       );
 
@@ -179,54 +281,68 @@ class SoundAnalysisController {
         this.notCryingCount = 0;
       }
 
-      // ✅ 울음 감지 시 DB 저장 + 소켓 알림
       if (response.data.data.cry_detected === true) {
+
         console.log('[SoundAnalysisController] 울음 감지됨!');
 
         if (!this.userId) {
-          console.warn('[SoundAnalysisController] userId가 설정되지 않아 저장 불가');
+          console.warn(
+            '[SoundAnalysisController] userId가 설정되지 않아 저장 불가'
+          );
           return;
         }
 
-<<<<<<< HEAD
-        const io = this.app ? this.app.get('io') : null;
-        const cryProbability = response.data.data.cry_probability ?? null;
-=======
         if (!this.currentCryEvent) {
-            this.currentCryEvent = await SoundAnalysisResult.create({
-                cry_start_Time: new Date()
+          this.currentCryEvent =
+            await SoundAnalysisResult.create({
+              cry_start_Time: new Date()
             });
         }
 
-        const io = this.app ? this.app.get('io') : null;
-        const cryProbability = response.data.data.cry_ratio ?? null;
->>>>>>> kgj
+        const io = this.app
+          ? this.app.get('io')
+          : null;
 
-        await temhuController.saveCryEvent(this.userId, cryProbability, io);
+        const cryProbability =
+          response.data.data.cry_ratio ?? null;
+
+        await temhuController.saveCryEvent(
+          this.userId,
+          cryProbability,
+          io
+        );
       }
 
     } catch (error) {
+
       const errorResult = {
         timestamp: Date.now(),
         error: error.message,
         status: 'failed'
       };
+
       this.analysisHistory.push(errorResult);
 
     } finally {
+
       this.isAnalyzing = false;
     }
   }
 
   getAnalysisResults(req, res) {
+
     try {
+
       res.json({
         success: true,
         count: this.analysisResults.length,
         results: this.analysisResults
       });
+
     } catch (error) {
+
       console.error('[SoundAnalysisController] 결과 조회 실패:', error.message);
+
       res.status(500).json({
         success: false,
         message: '결과 조회 실패',
@@ -236,8 +352,14 @@ class SoundAnalysisController {
   }
 
   getAnalysisHistory(req, res) {
+
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit) : 20;
+
+      const limit =
+        req.query.limit
+          ? parseInt(req.query.limit)
+          : 20;
+
       const history = this.analysisHistory.slice(-limit);
 
       res.json({
@@ -246,8 +368,11 @@ class SoundAnalysisController {
         total: this.analysisHistory.length,
         history: history
       });
+
     } catch (error) {
+
       console.error('[SoundAnalysisController] 히스토리 조회 실패:', error.message);
+
       res.status(500).json({
         success: false,
         message: '히스토리 조회 실패',
@@ -257,14 +382,19 @@ class SoundAnalysisController {
   }
 
   getResultsByDate(req, res) {
+
     try {
+
       const { date } = req.params;
       const targetDate = new Date(date).getTime();
       const dayInMs = 24 * 60 * 60 * 1000;
 
       const filtered = this.analysisHistory.filter(item => {
         if (!item.timestamp) return false;
-        return item.timestamp >= targetDate && item.timestamp < targetDate + dayInMs;
+        return (
+          item.timestamp >= targetDate &&
+          item.timestamp < targetDate + dayInMs
+        );
       });
 
       res.json({
@@ -273,8 +403,11 @@ class SoundAnalysisController {
         count: filtered.length,
         results: filtered
       });
+
     } catch (error) {
+
       console.error('[SoundAnalysisController] 날짜별 조회 실패:', error.message);
+
       res.status(500).json({
         success: false,
         message: '날짜별 조회 실패',

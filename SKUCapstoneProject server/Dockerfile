@@ -1,9 +1,8 @@
-FROM node:20
+FROM node:20-alpine
 
 WORKDIR /app
 
-# ← ffmpeg 추가 필수!
-RUN apk add --no-cache ffmpeg
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 RUN npm ci --omit=dev
