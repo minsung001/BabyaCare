@@ -79,17 +79,28 @@ exports.generateDailyReport = async () => {
         const periodStart = last12h.toISOString().slice(0, 16).replace('T', ' ');
         const periodEnd = now.toISOString().slice(0, 16).replace('T', ' ');
 
+        // const data = {
+        //     reportType: "아침 수면 종합 리포트",
+        //     periodStart,
+        //     periodEnd,
+        //     avgTemp,
+        //     avgHumidity,
+        //     avgNoise,
+        //     avgScore,
+        //     cryingCount,
+        //     dataCount: nightData.length
+        // };
         const data = {
             reportType: "아침 수면 종합 리포트",
-            periodStart,
-            periodEnd,
-            avgTemp,
-            avgHumidity,
-            avgNoise,
-            avgScore,
-            cryingCount,
-            dataCount: nightData.length
-        };
+            periodStart: "2025-06-08 20:00",
+            periodEnd: "2025-06-09 08:00",
+            avgTemp: 20.0,
+            avgHumidity: 60.0,
+            avgNoise: 50.0,
+            avgScore: 66.0,
+            cryingCount: 2,
+            dataCount: 72
+        }; // 임시 데이터
 
         const reportText = await generateAiReport(data);
 

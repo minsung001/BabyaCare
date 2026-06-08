@@ -195,13 +195,13 @@ mqttClient.on('message', (topic, message) => {
     // 열화상
     // ─────────────────────────────────────────────────────
     if (topic === 'baby/thermal') {
-        // const avg = (
-        //     data.frame.reduce((a, b) => a + b, 0) / data.frame.length
-        // ).toFixed(2)
+        const avg = (
+            data.frame.reduce((a, b) => a + b, 0) / data.frame.length
+        ).toFixed(2)
 
-        // console.log(
-        //     `[MQTT] 열화상 수신: ${data.timestamp} 프레임 길이: ${data.frame.length} 평균온도: ${avg}`
-        // )
+        console.log(
+            `[MQTT] 열화상 평균온도: ${avg}`
+        )
 
         videoController.onThermal(data)
     }

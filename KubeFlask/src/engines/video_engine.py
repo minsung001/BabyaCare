@@ -11,7 +11,7 @@ try:
     import config
 except ImportError:
     class DummyConfig:
-        YOLO_MODEL = "models/best.pt"
+        YOLO_MODEL = "models/재학습522.pt"
         FACE_DETECTOR_MODEL = "models/blaze_face_short_range.tflite"
         VIDEO_BUFFER_SIZE = 10
     config = DummyConfig()
@@ -131,7 +131,7 @@ class VideoEngine:
 
                 if tx1 < tx2 and ty1 < ty2:
                     region = thermal_frame[ty1:ty2, tx1:tx2]
-                    temps = region[(region >= 34.0) & (region <= 40.0)]
+                    temps = region[(region >= 20.0) & (region <= 40.0)]
                     if len(temps) > 0:
                         estimated_temp = round(float(np.mean(temps)), 2)
 
