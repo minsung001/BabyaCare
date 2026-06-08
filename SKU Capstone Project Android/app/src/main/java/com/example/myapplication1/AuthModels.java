@@ -222,6 +222,9 @@ public class AuthModels {
         @SerializedName("humidity")
         public double humidity;
 
+        @SerializedName("noise")
+        public Double noise;
+
         @SerializedName("sleepScore")
         public Integer sleepScore;
 
@@ -246,7 +249,7 @@ public class AuthModels {
         @SerializedName("humidity")
         public double humidity;
 
-        @SerializedName("sleepScore")
+        @SerializedName("score")
         public Integer sleepScore;
     }
 

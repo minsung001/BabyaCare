@@ -126,10 +126,11 @@ exports.getSleepScoreHistory = async (req, res) => {
     }
 
     try {
-
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
         const history = await TemperHumility.find({
             userId,
-            sleepScore: { $ne: null }
+            sleepScore: { $ne: null },
+            timestamp: { $gte: since }
         })
         .sort({ timestamp: 1 })
         .select("sleepScore timestamp");

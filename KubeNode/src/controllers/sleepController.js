@@ -10,7 +10,7 @@ const calcScore = (temp, humidity, noise, isCrying) => {
     let score = 100;
     score -= 6 * Math.abs((temp ?? 23) - 23);
     score -= 0.5 * Math.abs((humidity ?? 50) - 50);
-    score -= 1 * Math.max(0, (noise+80 ?? 40) - 40);
+    score -= 1 * Math.max(0, (noise+80 ?? 40) - 40); 
     score -= 45 * (isCrying ? 1 : 0);
     return Math.max(0, Math.min(100, Math.round(score)));
 };
