@@ -246,20 +246,21 @@ exports.setAutoControl = async (req, res) => {
     }
 };
 
-// 자동제어 임계값 설정 (숫자만 바꾸면 됩니다)
+// ✅ 수정된 자동제어 임계값 (가습기 기준: 습도 낮으면 켜기)
 const AUTO_CONTROL_CONFIG = {
-    OFF_BELOW: 60,      // 이 습도 이하면 꺼짐
-    SPEED_2_AT: 50,     // 이 습도면 팬속도 2
-    SPEED_3_AT: 40,     // 이 습도면 팬속도 3
-    SPEED_4_AT: 30,     // 이 습도면 팬속도 4
+    OFF_ABOVE: 60,       // 이 습도 이상이면 꺼짐 (충분히 습함)
+    SPEED_4_BELOW: 30,   // 이 습도 이하면 팬속도 4 (매우 건조)
+    SPEED_3_BELOW: 40,   // 이 습도 이하면 팬속도 3
+    SPEED_2_BELOW: 50,   // 이 습도 이하면 팬속도 2
 };
 
+// ✅ 수정된 팬속도 계산 (습도 낮을수록 강하게)
 const getTargetFanSpeed = (humidity) => {
-    if (humidity <= AUTO_CONTROL_CONFIG.OFF_BELOW) return 0;
-    if (humidity >= AUTO_CONTROL_CONFIG.SPEED_4_AT) return 4;
-    if (humidity >= AUTO_CONTROL_CONFIG.SPEED_3_AT) return 3;
-    if (humidity >= AUTO_CONTROL_CONFIG.SPEED_2_AT) return 2;
-    return 1;
+    if (humidity >= AUTO_CONTROL_CONFIG.OFF_ABOVE) return 0;     // 60% 이상 → 꺼짐
+    if (humidity <= AUTO_CONTROL_CONFIG.SPEED_4_BELOW) return 4; // 30% 이하 → 최대
+    if (humidity <= AUTO_CONTROL_CONFIG.SPEED_3_BELOW) return 3; // 31~40%
+    if (humidity <= AUTO_CONTROL_CONFIG.SPEED_2_BELOW) return 2; // 41~50%
+    return 1;                                                      // 51~59%
 };
 
 // 내부에서 직접 호출용
@@ -316,18 +317,18 @@ const runAutoControlInternal = async (userId, deviceId, patToken) => {
 // 30분마다 모든 유저 자동제어 실행
 const startAutoControlScheduler = async () => {
     console.log('[SCHEDULER] 자동제어 스케줄러 시작 (30분 간격)');
-    
+
     setInterval(async () => {
         console.log('[SCHEDULER] 자동제어 실행 중...');
         try {
             const allST = await SmartThings.find({ autoControl: true, patToken: { $exists: true } });
-            
+
             for (const st of allST) {
                 const devices = await axios.get(`${ST_API}/devices`, {
                     headers: { Authorization: `Bearer ${st.patToken}` },
                     timeout: 7000
                 });
-                
+
                 const humidifiers = (devices.data.items || []).filter(d => {
                     const caps = (d.components || []).find(c => c.id === 'main')?.capabilities.map(c => c.id) || [];
                     return caps.includes('relativeHumidityMeasurement') && caps.includes('fanSpeed');
@@ -340,7 +341,7 @@ const startAutoControlScheduler = async () => {
         } catch (error) {
             console.error('[SCHEDULER_ERROR]', error.message);
         }
-    }, 30 * 60 * 1000); // 30분
+    }, 30 * 60 * 1000);
 };
 
 exports.startAutoControlScheduler = startAutoControlScheduler;
@@ -355,12 +356,10 @@ exports.runAutoControl = async (req, res) => {
             return res.status(404).json({ ok: false, message: 'SmartThings 토큰이 없습니다.' });
         }
 
-        // 자동제어 꺼져있으면 스킵
         if (!stInfo.autoControl) {
             return res.status(200).json({ ok: true, message: '자동제어가 비활성화 상태입니다.' });
         }
 
-        // 현재 상태 조회
         const statusRes = await axios.get(
             `${ST_API}/devices/${deviceId}/status`,
             { headers: { Authorization: `Bearer ${stInfo.patToken}` }, timeout: 7000 }
@@ -381,24 +380,20 @@ exports.runAutoControl = async (req, res) => {
         const commands = [];
 
         if (targetSpeed === 0) {
-            // 꺼야 하는데 켜져있으면 끄기
             if (currentSwitch === 'on') {
                 commands.push({ component: 'main', capability: 'switch', command: 'off', arguments: [] });
                 console.log(`[AUTO_CONTROL] 습도 ${humidity}% → 가습기 OFF`);
             }
         } else {
-            // 켜야 하는데 꺼져있으면 켜기
             if (currentSwitch === 'off' || currentSwitch === null) {
                 commands.push({ component: 'main', capability: 'switch', command: 'on', arguments: [] });
             }
-            // 팬속도가 다르면 변경
             if (currentFanSpeed !== targetSpeed) {
                 commands.push({ component: 'main', capability: 'fanSpeed', command: 'setFanSpeed', arguments: [targetSpeed] });
                 console.log(`[AUTO_CONTROL] 습도 ${humidity}% → 팬속도 ${targetSpeed}`);
             }
         }
 
-        // 변경사항 없으면 스킵
         if (commands.length === 0) {
             return res.status(200).json({ ok: true, message: '변경사항 없음', humidity, targetSpeed });
         }

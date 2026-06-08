@@ -210,9 +210,9 @@ mqttClient.on('message', (topic, message) => {
     // 온습도
     // ─────────────────────────────────────────────────────
     else if (topic === 'baby/environment') {
-        // console.log(
-        //     `[MQTT] 온습도 수신: ${data.temperature}°C ${data.humidity}%`
-        // )
+        console.log(
+             `[MQTT] 온습도 수신: ${data.temperature}°C ${data.humidity}%`
+        )
 
         temhuController.onData(data)
     }

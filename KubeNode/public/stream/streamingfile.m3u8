@@ -1,0 +1,16 @@
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-ALLOW-CACHE:NO
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:83
+#EXTINF:2.000000,
+streamingfile83.ts
+#EXTINF:2.000000,
+streamingfile84.ts
+#EXTINF:2.000000,
+streamingfile85.ts
+#EXTINF:2.000000,
+streamingfile86.ts
+#EXTINF:1.600000,
+streamingfile87.ts
+#EXT-X-ENDLIST
