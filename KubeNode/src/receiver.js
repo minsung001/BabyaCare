@@ -7,6 +7,7 @@ const mqtt = require('mqtt')
 const videoController = require('./controllers/videoController')
 const soundAnalysisController = require('./controllers/soundAnalysisController')
 const temhuController = require('./controllers/TemhuController')
+const stController = require('./controllers/smartThingsController')
 
 let wss
 
@@ -215,6 +216,7 @@ mqttClient.on('message', (topic, message) => {
         )
 
         temhuController.onData(data)
+        stController.onData(data.humidity)
     }
 })
 

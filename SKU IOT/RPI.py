@@ -256,6 +256,15 @@ def main():
 
         except RuntimeError as e:
             print(f"DHT22 runtime error: {e}")
+            try:
+                dht_device.exit()
+            except:
+                pass
+            time.sleep(2)
+            try:
+                dht_device = adafruit_dht.DHT22(board.D4, use_pulseio=False)
+            except Exception as reinit_e:
+                print(f"DHT22 재초기화 실패: {reinit_e}")
 
         except Exception as e:
             print(f"DHT22 error: {e}")

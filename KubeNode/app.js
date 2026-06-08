@@ -149,11 +149,6 @@ cron.schedule(CRON_DAILY_REPORT, () => {
 
 const { startAutoControlScheduler } = require('./src/controllers/smartThingsController');
 
-// 30분마다 환경 제어(가습기, 에어컨) > 자동제어 ON인 경우에만
-cron.schedule('*/30 * * * *', () => {
-    console.log('💨 [SmartThings] 자동제어 실행');
-    startAutoControlScheduler();
-});
 
 // =========================================================
 // SERVER START
