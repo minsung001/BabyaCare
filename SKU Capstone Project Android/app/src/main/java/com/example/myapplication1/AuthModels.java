@@ -314,6 +314,9 @@ public class AuthModels {
 
         @SerializedName("label")
         public String label;
+
+        @SerializedName("capabilities")
+        public List<String> capabilities;
     }
 
     public static class DeviceStatusResponse implements Serializable {
@@ -342,8 +345,18 @@ public class AuthModels {
         @SerializedName("command")
         public String command;
 
+        @SerializedName("action")
+        public String action;
+
+        @SerializedName("args")
+        public List<Object> args;
+
         @SerializedName("value")
         public double value;
+
+        public ControlRequest(String action) {
+            this.action = action;
+        }
 
         public ControlRequest(
                 String deviceId,
@@ -371,6 +384,18 @@ public class AuthModels {
 
         @SerializedName("humidity")
         public double humidity;
+
+        @SerializedName("action")
+        public String action;
+
+        @SerializedName("deviceId")
+        public String deviceId;
+
+        @SerializedName("capability")
+        public String capability;
+
+        @SerializedName("command")
+        public String command;
     }
 
     // =========================================================

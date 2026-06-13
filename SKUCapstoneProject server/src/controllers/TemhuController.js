@@ -1,8 +1,10 @@
 const TemperHumility = require('../models/TemperHumility');
+const smartThingsController = require('./smartThingsController');
 
 const TEMP_HIGH = 28;
 const TEMP_LOW = 18;
 const RAPID_TEMP_CHANGE = 3;
+const DEFAULT_IOT_USER_ID = process.env.IOT_DEFAULT_USER_ID || 'lkms1472';
 
 /**
  * 위험 상태 검사 + Socket 알림
@@ -111,16 +113,106 @@ const checkDangerCondition = async (
     }
 };
 
+exports.saveSensorReading = async ({
+    userId,
+    temperature,
+    humidity,
+    io
+}) => {
+    if (
+        temperature === undefined ||
+        humidity === undefined ||
+        !userId
+    ) {
+        throw new Error('temperature, humidity, and userId are required.');
+    }
+
+    const latestSleep = await TemperHumility.findOne({
+        userId
+    }).sort({
+        timestamp: -1
+    });
+
+    const sensorData = new TemperHumility({
+        userId,
+        temperature,
+        humidity,
+        sleepScore: latestSleep?.sleepScore || null,
+        timestamp: new Date()
+    });
+
+    await sensorData.save();
+
+    console.log(
+        `[DB 저장 완료] userId=${userId}, temp=${temperature}, hum=${humidity}`
+    );
+
+    await checkDangerCondition(
+        userId,
+        temperature,
+        io
+    );
+
+    try {
+        const automationActions = await smartThingsController.applySensorAutomation({
+            userId,
+            temperature,
+            humidity
+        });
+
+        if (automationActions.length > 0) {
+            console.log('[ST_AUTOMATION]', automationActions);
+        }
+    } catch (automationError) {
+        console.error('[ST_AUTOMATION_ERROR]', automationError.message);
+    }
+
+    return sensorData;
+};
+
+exports.getHistoryData = async (req, res) => {
+
+    const { userId } = req.query;
+
+    try {
+
+        const query = userId
+            ? { userId }
+            : {};
+
+        const history = await TemperHumility.find(query)
+            .sort({ timestamp: -1 })
+            .limit(50)
+            .lean();
+
+        const formatted = history.reverse().map(item => ({
+            time: item.timestamp,
+            temperature: item.temperature,
+            humidity: item.humidity,
+            sleepScore: item.sleepScore
+        }));
+
+        res.status(200).json(formatted);
+
+    } catch (error) {
+
+        res.status(500).json({
+            message: "Failed to load sensor history.",
+            error: error.message
+        });
+    }
+};
+
 /**
  * 1. IoT → Node.js 데이터 수신
  */
 exports.receiveSensorData = async (
     req,
-    res,
-    io
+    res
 ) => {
 
     try {
+        const io = req.app?.get('io');
 
         const {
             temperature,
@@ -173,6 +265,20 @@ exports.receiveSensorData = async (
             temperature,
             io
         );
+
+        try {
+            const automationActions = await smartThingsController.applySensorAutomation({
+                userId,
+                temperature,
+                humidity
+            });
+
+            if (automationActions.length > 0) {
+                console.log('[ST_AUTOMATION]', automationActions);
+            }
+        } catch (automationError) {
+            console.error('[ST_AUTOMATION_ERROR]', automationError.message);
+        }
 
         res.status(200).json({
             success: true,

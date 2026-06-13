@@ -8,13 +8,36 @@ const axios = require('axios');
 const path = require('path');
 
 const { connectDB } = require('./src/db'); 
-const receiver = require('./src/receiver'); 
+const mqttEnvironmentSubscriber = require('./src/mqttEnvironmentSubscriber');
 
 const temhuController = require('./src/controllers/TemhuController');
 const sleepController = require('./src/controllers/sleepController'); 
 
 const app = express();
 const server = http.createServer(app);
+
+const getErrorSummary = (error) => String(error.message || error).split('\n')[0];
+
+const createUnavailableRouter = (name, error) => {
+    const router = express.Router();
+    router.use((req, res) => {
+        res.status(503).json({
+            ok: false,
+            message: `${name} module is unavailable.`,
+            error: getErrorSummary(error)
+        });
+    });
+    return router;
+};
+
+const loadOptionalRouter = (modulePath, name) => {
+    try {
+        return require(modulePath);
+    } catch (error) {
+        console.error(`[OPTIONAL_MODULE_DISABLED] ${name}:`, getErrorSummary(error));
+        return createUnavailableRouter(name, error);
+    }
+};
 
 // IoT 기기 통신용 (기존 유지)
 const wss = new WebSocket.Server({ server });
@@ -56,8 +79,8 @@ const policyRouter = require('./src/routes/policyRoutes');
 const vaccineRouter = require('./src/routes/vaccineRoutes');
 const sleepRoutes = require('./src/routes/sleepRoutes');
 const smartThingsRouter = require('./src/routes/smartThingsRoutes');
-const videoRoutes = require('./src/routes/videoRoutes');
-const soundAnalysisRoutes = require('./src/routes/soundAnalysisRoutes');
+const videoRoutes = loadOptionalRouter('./src/routes/videoRoutes', 'video');
+const soundAnalysisRoutes = loadOptionalRouter('./src/routes/soundAnalysisRoutes', 'sound-analysis');
 const aiRouter = require('./src/routes/airouter');
 const temhuRoutes = require('./src/routes/temhuRoutes');
 
@@ -65,7 +88,7 @@ app.use('/auth', authRouter);
 app.use('/api/policies', policyRouter);
 app.use('/api/vaccine', vaccineRouter);
 app.use('/api/Sleep', sleepRoutes);
-app.use('/api/SmartThings', smartThingsRouter);
+app.use('/api/smartthings', smartThingsRouter);
 app.use('/api/video', videoRoutes);
 app.use('/api/sound-analysis', soundAnalysisRoutes);
 app.use('/api/ai', aiRouter);
@@ -83,7 +106,9 @@ app.use('/stream', (req, res, next) => {
 
 // 30초마다 온습도 버퍼 DB 저장
 setInterval(() => {
-    temhuController.saveBufferToDB(); 
+    if (typeof temhuController.saveBufferToDB === 'function') {
+        temhuController.saveBufferToDB();
+    }
 }, 30000);
 
 // 10분마다 수면점수 계산 → temperhumilities에 저장
@@ -109,8 +134,15 @@ server.listen(PORT, async () => {
     try {
         await connectDB();
         console.log(`✅ MongoDB 연결 성공`);
-        receiver.init(wss);
-        console.log(`✅ WebSocket(Receiver) 초기화 성공`);
+        mqttEnvironmentSubscriber.init(app);
+        console.log(`✅ MQTT 환경 센서 구독 초기화 성공`);
+        try {
+            const receiver = require('./src/receiver');
+            receiver.init(wss);
+            console.log(`✅ WebSocket(Receiver) 초기화 성공`);
+        } catch (receiverError) {
+            console.error('[OPTIONAL_MODULE_DISABLED] receiver:', getErrorSummary(receiverError));
+        }
         axios.post(`http://localhost:${PORT}/api/video/start`).catch(() => {});
         axios.post(`http://localhost:${PORT}/api/sound-analysis/start`).catch(() => {});
         console.log(`🚀 서버 가동 중: http://localhost:${PORT}`);

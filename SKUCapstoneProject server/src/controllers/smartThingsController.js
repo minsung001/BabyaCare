@@ -3,122 +3,248 @@ const SmartThings = require('../models/SmartThings');
 const User = require('../models/User');
 
 const ST_API = 'https://api.smartthings.com/v1';
+const automationState = new Map();
 
-// ==========================================
-// 기존 기능
-// ==========================================
+const numberFromEnv = (name, fallback) => {
+    const value = Number(process.env[name]);
+    return Number.isFinite(value) ? value : fallback;
+};
+
+const hasCapability = (device, capability) => {
+    return (device.components || []).some(component =>
+        (component.capabilities || []).some(item => item.id === capability)
+    );
+};
+
+const mapDevice = (device) => ({
+    deviceId: device.deviceId,
+    name: device.name,
+    label: device.label || device.name,
+    deviceTypeName: device.deviceTypeName,
+    locationId: device.locationId,
+    capabilities: (device.components || []).flatMap(component =>
+        (component.capabilities || []).map(capability => capability.id)
+    )
+});
+
+const findSmartThingsInfo = async (ownerKey) => {
+    const byEmail = await SmartThings.findOne({ userEmail: ownerKey });
+    if (byEmail) return byEmail;
+
+    if (/^[0-9a-fA-F]{24}$/.test(String(ownerKey))) {
+        return SmartThings.findOne({ userId: ownerKey });
+    }
+
+    return null;
+};
+
+const getDevices = async (patToken) => {
+    const response = await axios.get(`${ST_API}/devices`, {
+        headers: { Authorization: `Bearer ${patToken}` },
+        timeout: 7000
+    });
+
+    return response.data.items || [];
+};
+
+const resolveSwitchDeviceId = async (patToken, preferredDeviceId) => {
+    if (preferredDeviceId) return preferredDeviceId;
+
+    const devices = await getDevices(patToken);
+    const switchDevice = devices.find(device => hasCapability(device, 'switch'));
+    return switchDevice?.deviceId || devices[0]?.deviceId || null;
+};
+
+const sendSmartThingsCommand = async (patToken, { deviceId, capability, command, args = [] }) => {
+    if (!deviceId || !capability || !command) {
+        throw new Error('deviceId, capability, command are required.');
+    }
+
+    await axios.post(
+        `${ST_API}/devices/${deviceId}/commands`,
+        {
+            commands: [{
+                component: 'main',
+                capability,
+                command,
+                arguments: args
+            }]
+        },
+        { headers: { Authorization: `Bearer ${patToken}` }, timeout: 7000 }
+    );
+};
+
+const runSwitchAutomation = async ({ stInfo, deviceId, stateKey, shouldTurnOn, reason }) => {
+    if (!deviceId) return null;
+
+    const nextCommand = shouldTurnOn ? 'on' : 'off';
+    if (automationState.get(stateKey) === nextCommand) return null;
+
+    await sendSmartThingsCommand(stInfo.patToken, {
+        deviceId,
+        capability: 'switch',
+        command: nextCommand
+    });
+
+    automationState.set(stateKey, nextCommand);
+    return { deviceId, command: nextCommand, reason };
+};
+
+const resolveActionCommand = async (stInfo, action, fallbackDeviceId) => {
+    const coolingDeviceId = await resolveSwitchDeviceId(
+        stInfo.patToken,
+        process.env.ST_COOLING_DEVICE_ID || fallbackDeviceId
+    );
+    const humidifierDeviceId = await resolveSwitchDeviceId(
+        stInfo.patToken,
+        process.env.ST_HUMIDIFIER_DEVICE_ID || fallbackDeviceId
+    );
+
+    const actionMap = {
+        cooling_on: { deviceId: coolingDeviceId, capability: 'switch', command: 'on' },
+        cooling_off: { deviceId: coolingDeviceId, capability: 'switch', command: 'off' },
+        humidifier_on: { deviceId: humidifierDeviceId, capability: 'switch', command: 'on' },
+        humidifier_off: { deviceId: humidifierDeviceId, capability: 'switch', command: 'off' }
+    };
+
+    return actionMap[action] || null;
+};
+
+exports.applySensorAutomation = async ({ userId, temperature, humidity }) => {
+    const stInfo = await findSmartThingsInfo(userId);
+    if (!stInfo || !stInfo.patToken) return [];
+
+    const tempOn = numberFromEnv('ST_TEMP_ON', 28);
+    const tempOff = numberFromEnv('ST_TEMP_OFF', 26);
+    const humidOn = numberFromEnv('ST_HUMIDITY_ON', 40);
+    const humidOff = numberFromEnv('ST_HUMIDITY_OFF', 55);
+
+    const coolingDeviceId = await resolveSwitchDeviceId(stInfo.patToken, process.env.ST_COOLING_DEVICE_ID);
+    const humidifierDeviceId = await resolveSwitchDeviceId(stInfo.patToken, process.env.ST_HUMIDIFIER_DEVICE_ID);
+    const actions = [];
+
+    if (Number.isFinite(Number(temperature)) && coolingDeviceId) {
+        if (temperature >= tempOn) {
+            const result = await runSwitchAutomation({
+                stInfo,
+                deviceId: coolingDeviceId,
+                stateKey: `${stInfo.userEmail}:cooling`,
+                shouldTurnOn: true,
+                reason: `temperature ${temperature} >= ${tempOn}`
+            });
+            if (result) actions.push(result);
+        } else if (temperature <= tempOff) {
+            const result = await runSwitchAutomation({
+                stInfo,
+                deviceId: coolingDeviceId,
+                stateKey: `${stInfo.userEmail}:cooling`,
+                shouldTurnOn: false,
+                reason: `temperature ${temperature} <= ${tempOff}`
+            });
+            if (result) actions.push(result);
+        }
+    }
+
+    if (Number.isFinite(Number(humidity)) && humidifierDeviceId) {
+        if (humidity <= humidOn) {
+            const result = await runSwitchAutomation({
+                stInfo,
+                deviceId: humidifierDeviceId,
+                stateKey: `${stInfo.userEmail}:humidifier`,
+                shouldTurnOn: true,
+                reason: `humidity ${humidity} <= ${humidOn}`
+            });
+            if (result) actions.push(result);
+        } else if (humidity >= humidOff) {
+            const result = await runSwitchAutomation({
+                stInfo,
+                deviceId: humidifierDeviceId,
+                stateKey: `${stInfo.userEmail}:humidifier`,
+                shouldTurnOn: false,
+                reason: `humidity ${humidity} >= ${humidOff}`
+            });
+            if (result) actions.push(result);
+        }
+    }
+
+    return actions;
+};
 
 exports.registerSmartThings = async (req, res) => {
     const { token, email } = req.body;
     const userId = req.user.userId || req.user.id;
 
-    console.log('\n[ST_PROCESS] ======= SmartThings 연동 시작 =======');
-    console.log('[ST_INFO] 요청 유저:', email, userId);
-
     if (!token || token.length < 10) {
         return res.status(400).json({
             ok: false,
-            message: '유효한 SmartThings 토큰을 입력해주세요.'
+            message: 'Please enter a valid SmartThings token.'
         });
     }
 
     try {
         const userExists = await User.findById(userId);
         if (!userExists) {
-            return res.status(404).json({ ok: false, message: '사용자 정보를 찾을 수 없습니다.' });
+            return res.status(404).json({ ok: false, message: 'User not found.' });
         }
 
-        console.log('[ST_API] 삼성 서버로 기기 목록 요청 중...');
-
-        const stResponse = await axios.get(`${ST_API}/devices`, {
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-            timeout: 7000
-        });
-
-        const devices = stResponse.data.items || [];
-        console.log(`[ST_API] 삼성 서버 응답 성공. 발견된 기기: ${devices.length}개`);
-
+        const devices = await getDevices(token);
         const updatedData = await SmartThings.findOneAndUpdate(
             { userId },
             { userEmail: email, patToken: token, deviceCount: devices.length, updatedAt: Date.now() },
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
 
-        console.log('[ST_DB] MongoDB 저장 완료:', updatedData._id);
-
-        const mappedDevices = devices.map(device => ({
-            deviceId: device.deviceId,
-            name: device.name,
-            label: device.label || device.name,
-            deviceTypeName: device.deviceTypeName,
-            locationId: device.locationId
-        }));
+        console.log('[ST_REGISTER] saved:', updatedData._id, 'devices:', devices.length);
 
         return res.status(200).json({
             ok: true,
-            message: 'SmartThings 연동 및 기기 동기화가 완료되었습니다.',
-            devices: mappedDevices
+            message: 'SmartThings registration complete.',
+            devices: devices.map(mapDevice)
         });
-
     } catch (error) {
-        console.error('\n[ST_CRITICAL_ERROR] 연동 실패 상세 로그:');
+        console.error('[ST_REGISTER_ERROR]', error.response?.status || error.message);
         if (error.response) {
-            console.error('삼성 API 에러 코드:', error.response.status);
-            return res.status(401).json({ ok: false, message: '삼성 인증 토큰이 유효하지 않거나 만료되었습니다.' });
+            return res.status(401).json({ ok: false, message: 'SmartThings token is invalid or expired.' });
         }
         if (error.request) {
-            return res.status(503).json({ ok: false, message: '삼성 서버와 통신할 수 없습니다.' });
+            return res.status(503).json({ ok: false, message: 'Could not connect to SmartThings API.' });
         }
-        return res.status(500).json({ ok: false, message: '서버 내부 처리 중 오류가 발생했습니다.' });
+        return res.status(500).json({ ok: false, message: 'Server error while registering SmartThings.' });
     }
 };
 
 exports.getUserDevices = async (req, res) => {
     try {
         const userId = req.user.userId || req.user.id;
-        const stInfo = await SmartThings.findOne({ userId });
+        const stInfo = await findSmartThingsInfo(userId);
 
         if (!stInfo || !stInfo.patToken) {
-            return res.status(200).json({ ok: true, devices: [], message: '연동된 기기가 없습니다.' });
+            return res.status(200).json({ ok: true, devices: [], message: 'No SmartThings token registered.' });
         }
 
-        const response = await axios.get(`${ST_API}/devices`, {
-            headers: { Authorization: `Bearer ${stInfo.patToken}` },
-            timeout: 7000
-        });
-
-        const devices = (response.data.items || []).map(device => ({
-            deviceId: device.deviceId,
-            name: device.name,
-            label: device.label || device.name,
-            deviceTypeName: device.deviceTypeName,
-            locationId: device.locationId,
+        const devices = (await getDevices(stInfo.patToken)).map(device => ({
+            ...mapDevice(device),
             status: 'online'
         }));
 
         return res.status(200).json({ ok: true, devices });
-
     } catch (error) {
-        console.error('[ST_GET_ERROR] 기기 목록 로드 실패:', error.message);
+        console.error('[ST_GET_ERROR]', error.message);
         if (error.response && error.response.status === 401) {
-            return res.status(401).json({ ok: false, message: '인증이 만료되었습니다. 다시 연동해주세요.' });
+            return res.status(401).json({ ok: false, message: 'SmartThings authentication expired.' });
         }
-        return res.status(500).json({ ok: false, message: '기기 목록을 가져오는 중 오류가 발생했습니다.' });
+        return res.status(500).json({ ok: false, message: 'Failed to load SmartThings devices.' });
     }
 };
-
-// ==========================================
-// ✅ 추가: 디바이스 상태 조회 (온도/습도)
-// ==========================================
 
 exports.getDeviceStatus = async (req, res) => {
     try {
         const userId = req.user.userId || req.user.id;
         const { deviceId } = req.params;
 
-        const stInfo = await SmartThings.findOne({ userId });
+        const stInfo = await findSmartThingsInfo(userId);
         if (!stInfo || !stInfo.patToken) {
-            return res.status(404).json({ ok: false, message: 'SmartThings 토큰이 없습니다.' });
+            return res.status(404).json({ ok: false, message: 'SmartThings token is missing.' });
         }
 
         const response = await axios.get(
@@ -126,85 +252,45 @@ exports.getDeviceStatus = async (req, res) => {
             { headers: { Authorization: `Bearer ${stInfo.patToken}` }, timeout: 7000 }
         );
 
-        const components = response.data.components?.main;
-        const temperature = components?.temperatureMeasurement?.temperature?.value ?? null;
-        const humidity = components?.relativeHumidityMeasurement?.humidity?.value ?? null;
-
-        console.log(`[ST_STATUS] deviceId: ${deviceId}, temp: ${temperature}, humid: ${humidity}`);
-
-        res.status(200).json({ ok: true, deviceId, temperature, humidity });
-
+        res.status(200).json({ ok: true, deviceId, components: response.data.components });
     } catch (error) {
         console.error('[ST_STATUS_ERROR]', error.message);
         res.status(500).json({ ok: false, message: error.message });
     }
 };
 
-// ==========================================
-// ✅ 추가: 디바이스 제어 (온도/습도 올리기/내리기)
-// ==========================================
-
 exports.controlDevice = async (req, res) => {
     try {
         const userId = req.user.userId || req.user.id;
-        const { deviceId, capability, command, value } = req.body;
+        const { action, deviceId, capability, command, args } = req.body;
 
-        const stInfo = await SmartThings.findOne({ userId });
+        const stInfo = await findSmartThingsInfo(userId);
         if (!stInfo || !stInfo.patToken) {
-            return res.status(404).json({ ok: false, message: 'SmartThings 토큰이 없습니다.' });
+            return res.status(404).json({ ok: false, message: 'SmartThings token is missing.' });
         }
 
-        // 올리기/내리기 계산
-        let newValue;
-        if (command === 'up') {
-            newValue = parseFloat((parseFloat(value) + 1).toFixed(1));
-        } else if (command === 'down') {
-            newValue = parseFloat((parseFloat(value) - 1).toFixed(1));
-        } else {
-            return res.status(400).json({ ok: false, message: '잘못된 command입니다. (up/down)' });
+        const commandBody = action
+            ? await resolveActionCommand(stInfo, action, deviceId)
+            : { deviceId, capability, command, args: Array.isArray(args) ? args : [] };
+
+        if (!commandBody || !commandBody.deviceId || !commandBody.capability || !commandBody.command) {
+            return res.status(400).json({ ok: false, message: 'Unsupported SmartThings command.' });
         }
 
-        // 범위 제한
-        if (capability === 'temperatureMeasurement') {
-            newValue = Math.max(16, Math.min(35, newValue)); // 16°C ~ 35°C
-        } else if (capability === 'relativeHumidityMeasurement') {
-            newValue = Math.max(0, Math.min(100, newValue)); // 0% ~ 100%
-        }
+        await sendSmartThingsCommand(stInfo.patToken, commandBody);
 
-        // SmartThings 가상 디바이스 명령 전송
-        const commandName = capability === 'temperatureMeasurement'
-            ? 'setTemperature'
-            : 'setHumidity';
+        console.log(`[ST_CONTROL] ${commandBody.deviceId} ${commandBody.capability}.${commandBody.command}`);
 
-        await axios.post(
-            `${ST_API}/devices/${deviceId}/commands`,
-            {
-                commands: [{
-                    component: 'main',
-                    capability,
-                    command: commandName,
-                    arguments: [newValue]
-                }]
-            },
-            { headers: { Authorization: `Bearer ${stInfo.patToken}` }, timeout: 7000 }
-        );
-
-        console.log(`[ST_CONTROL] ${capability} → ${newValue}`);
-
-        // 최신 상태 다시 조회해서 반환
-        const statusRes = await axios.get(
-            `${ST_API}/devices/${deviceId}/status`,
-            { headers: { Authorization: `Bearer ${stInfo.patToken}` }, timeout: 7000 }
-        );
-
-        const components = statusRes.data.components?.main;
-        const temperature = components?.temperatureMeasurement?.temperature?.value ?? null;
-        const humidity = components?.relativeHumidityMeasurement?.humidity?.value ?? null;
-
-        res.status(200).json({ ok: true, temperature, humidity });
-
+        res.status(200).json({
+            ok: true,
+            action: action || null,
+            deviceId: commandBody.deviceId,
+            capability: commandBody.capability,
+            command: commandBody.command,
+            message: 'SmartThings command sent.'
+        });
     } catch (error) {
-        console.error('[ST_CONTROL_ERROR]', error.message);
+        console.error('[ST_CONTROL_ERROR]', error.response?.data || error.message);
         res.status(500).json({ ok: false, message: error.message });
     }
 };

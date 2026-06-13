@@ -25,15 +25,15 @@ public class EnvironmentActivity extends AppCompatActivity {
 
     private double currentTemp = 0;
     private double currentHumid = 0;
-    private String deviceId = "";
     private String accessToken = "";
+    private String userId = "";
 
     private ApiService apiService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_environment); // ✅ XML 파일명 맞춰야 함
+        setContentView(R.layout.activity_environment);
 
         tvTempValue = findViewById(R.id.tvTempValue);
         tvHumidityValue = findViewById(R.id.tvHumidityValue);
@@ -46,8 +46,7 @@ public class EnvironmentActivity extends AppCompatActivity {
 
         SharedPreferences pref = getSharedPreferences("UserPrefs", MODE_PRIVATE);
         accessToken = pref.getString("accessToken", "");
-
-        Log.d(TAG, "accessToken: " + accessToken);
+        userId = pref.getString("userEmail", "");
 
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl("http://10.0.2.2:3001/")
@@ -61,120 +60,93 @@ public class EnvironmentActivity extends AppCompatActivity {
             finish();
         });
 
-        btnTempUp.setOnClickListener(v ->
-                controlDevice("temperatureMeasurement", "up", currentTemp));
+        btnTempUp.setOnClickListener(v -> controlDevice("cooling_on"));
+        btnTempDown.setOnClickListener(v -> controlDevice("cooling_off"));
+        btnHumidUp.setOnClickListener(v -> controlDevice("humidifier_on"));
+        btnHumidDown.setOnClickListener(v -> controlDevice("humidifier_off"));
 
-        btnTempDown.setOnClickListener(v ->
-                controlDevice("temperatureMeasurement", "down", currentTemp));
-
-        btnHumidUp.setOnClickListener(v ->
-                controlDevice("relativeHumidityMeasurement", "up", currentHumid));
-
-        btnHumidDown.setOnClickListener(v ->
-                controlDevice("relativeHumidityMeasurement", "down", currentHumid));
-
-        loadDevices();
+        loadSensorStatus();
+        checkSmartThingsRegistration();
     }
 
-    // ✅ DeviceResponse 단일로 수정
-    private void loadDevices() {
+    private void loadSensorStatus() {
+        if (userId == null || userId.isEmpty()) {
+            Toast.makeText(this, "사용자 정보를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        apiService.getTemhuLatest(userId)
+                .enqueue(new Callback<AuthModels.TemperHumilityResponse>() {
+                    @Override
+                    public void onResponse(Call<AuthModels.TemperHumilityResponse> call,
+                                           Response<AuthModels.TemperHumilityResponse> response) {
+                        Log.d(TAG, "sensor status response: " + response.code());
+
+                        if (response.isSuccessful() && response.body() != null) {
+                            currentTemp = response.body().temperature;
+                            currentHumid = response.body().humidity;
+                            updateUI();
+                        } else {
+                            Toast.makeText(EnvironmentActivity.this,
+                                    "센서 데이터를 불러오지 못했습니다.", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<AuthModels.TemperHumilityResponse> call, Throwable t) {
+                        Log.e(TAG, "sensor status failed: " + t.getMessage());
+                        Toast.makeText(EnvironmentActivity.this,
+                                "서버 연결 실패", Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+    private void checkSmartThingsRegistration() {
         apiService.getDevices("Bearer " + accessToken)
                 .enqueue(new Callback<AuthModels.DeviceResponse>() {
                     @Override
                     public void onResponse(Call<AuthModels.DeviceResponse> call,
                                            Response<AuthModels.DeviceResponse> response) {
-
-                        Log.d(TAG, "디바이스 목록 응답: " + response.code());
-
-                        if (response.isSuccessful() && response.body() != null
-                                && response.body().ok
-                                && response.body().devices != null
-                                && !response.body().devices.isEmpty()) {
-
-                            deviceId = response.body().devices.get(0).deviceId;
-                            Log.d(TAG, "deviceId: " + deviceId);
-                            loadDeviceStatus();
-
-                        } else {
+                        if (!response.isSuccessful()
+                                || response.body() == null
+                                || !response.body().ok
+                                || response.body().devices == null
+                                || response.body().devices.isEmpty()) {
                             Toast.makeText(EnvironmentActivity.this,
-                                    "연동된 기기가 없습니다.", Toast.LENGTH_SHORT).show();
+                                    "SmartThings 기기를 먼저 연동해주세요.", Toast.LENGTH_SHORT).show();
                         }
                     }
 
                     @Override
                     public void onFailure(Call<AuthModels.DeviceResponse> call, Throwable t) {
-                        Log.e(TAG, "디바이스 목록 실패: " + t.getMessage());
-                        Toast.makeText(EnvironmentActivity.this,
-                                "서버 연결 실패", Toast.LENGTH_SHORT).show();
+                        Log.e(TAG, "device list failed: " + t.getMessage());
                     }
                 });
     }
 
-    private void loadDeviceStatus() {
-        apiService.getDeviceStatus("Bearer " + accessToken, deviceId)
-                .enqueue(new Callback<AuthModels.DeviceStatusResponse>() {
-                    @Override
-                    public void onResponse(Call<AuthModels.DeviceStatusResponse> call,
-                                           Response<AuthModels.DeviceStatusResponse> response) {
-
-                        Log.d(TAG, "상태 응답: " + response.code());
-
-                        if (response.isSuccessful() && response.body() != null
-                                && response.body().ok) {
-
-                            currentTemp = response.body().temperature;
-                            currentHumid = response.body().humidity;
-                            updateUI();
-
-                        } else {
-                            Toast.makeText(EnvironmentActivity.this,
-                                    "상태 조회 실패", Toast.LENGTH_SHORT).show();
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Call<AuthModels.DeviceStatusResponse> call, Throwable t) {
-                        Log.e(TAG, "상태 조회 실패: " + t.getMessage());
-                        Toast.makeText(EnvironmentActivity.this,
-                                "서버 연결 실패", Toast.LENGTH_SHORT).show();
-                    }
-                });
-    }
-
-    private void controlDevice(String capability, String command, double value) {
-        if (deviceId.isEmpty()) {
-            Toast.makeText(this, "기기를 먼저 연동해주세요.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        AuthModels.ControlRequest request = new AuthModels.ControlRequest(
-                deviceId, capability, command, value
-        );
+    private void controlDevice(String action) {
+        AuthModels.ControlRequest request = new AuthModels.ControlRequest(action);
 
         apiService.controlDevice("Bearer " + accessToken, request)
                 .enqueue(new Callback<AuthModels.ControlResponse>() {
                     @Override
                     public void onResponse(Call<AuthModels.ControlResponse> call,
                                            Response<AuthModels.ControlResponse> response) {
+                        Log.d(TAG, "control response: " + response.code());
 
-                        Log.d(TAG, "제어 응답: " + response.code());
-
-                        if (response.isSuccessful() && response.body() != null
-                                && response.body().ok) {
-
-                            currentTemp = response.body().temperature;
-                            currentHumid = response.body().humidity;
-                            updateUI();
-
+                        if (response.isSuccessful() && response.body() != null && response.body().ok) {
+                            Toast.makeText(EnvironmentActivity.this,
+                                    "SmartThings 명령을 전송했습니다.", Toast.LENGTH_SHORT).show();
+                            loadSensorStatus();
                         } else {
                             Toast.makeText(EnvironmentActivity.this,
-                                    "제어 실패", Toast.LENGTH_SHORT).show();
+                                    "SmartThings 제어 실패", Toast.LENGTH_SHORT).show();
                         }
                     }
 
                     @Override
                     public void onFailure(Call<AuthModels.ControlResponse> call, Throwable t) {
-                        Log.e(TAG, "제어 실패: " + t.getMessage());
+                        Log.e(TAG, "control failed: " + t.getMessage());
                         Toast.makeText(EnvironmentActivity.this,
                                 "서버 연결 실패", Toast.LENGTH_SHORT).show();
                     }
@@ -185,7 +157,7 @@ public class EnvironmentActivity extends AppCompatActivity {
         runOnUiThread(() -> {
             tvTempValue.setText(String.format("%.1f°C", currentTemp));
             tvHumidityValue.setText(String.format("%.1f%%", currentHumid));
-            Log.d(TAG, "UI 업데이트 - 온도: " + currentTemp + ", 습도: " + currentHumid);
+            Log.d(TAG, "UI updated - temp: " + currentTemp + ", humidity: " + currentHumid);
         });
     }
 }
