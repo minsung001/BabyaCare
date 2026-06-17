@@ -72,7 +72,7 @@ public class CryAlertService extends Service {
                 Log.d(TAG, "소켓 연결 성공");
 
                 // userId 방 입장
-                socket.emit("join", userId);
+                socket.emit("register", userId);
             });
 
             /**

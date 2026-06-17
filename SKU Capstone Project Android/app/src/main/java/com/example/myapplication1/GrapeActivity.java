@@ -78,9 +78,6 @@ public class GrapeActivity extends AppCompatActivity {
         btnBack = findViewById(R.id.btn_back);
     }
 
-    /**
-     * 그래프 데이터 조회
-     */
     private void loadEnvironmentHistory() {
 
         apiService.getTemhuHistory(userId)
@@ -91,28 +88,11 @@ public class GrapeActivity extends AppCompatActivity {
                             Call<List<AuthModels.TemperHistoryResponse>> call,
                             Response<List<AuthModels.TemperHistoryResponse>> response
                     ) {
-
-                        if (
-                                response.isSuccessful()
-                                        && response.body() != null
-                        ) {
-
-                            Log.d(
-                                    "GrapeActivity",
-                                    "이력 데이터 수신: "
-                                            + response.body().size()
-                                            + "개"
-                            );
-
+                        if (response.isSuccessful() && response.body() != null) {
+                            Log.d("GrapeActivity", "이력 데이터 수신: " + response.body().size() + "개");
                             updateChartUI(response.body());
-
                         } else {
-
-                            Log.e(
-                                    "GrapeActivity",
-                                    "이력 응답 실패: "
-                                            + response.code()
-                            );
+                            Log.e("GrapeActivity", "이력 응답 실패: " + response.code());
                         }
                     }
 
@@ -121,21 +101,13 @@ public class GrapeActivity extends AppCompatActivity {
                             Call<List<AuthModels.TemperHistoryResponse>> call,
                             Throwable t
                     ) {
-
-                        Log.e(
-                                "GrapeActivity",
-                                "이력 데이터 로드 실패: "
-                                        + t.getMessage()
-                        );
+                        Log.e("GrapeActivity", "이력 데이터 로드 실패: " + t.getMessage());
                     }
                 });
 
         loadLatestStatus();
     }
 
-    /**
-     * 최신 온습도 + 수면점수 조회
-     */
     private void loadLatestStatus() {
 
         apiService.getTemhuLatest(userId)
@@ -147,90 +119,44 @@ public class GrapeActivity extends AppCompatActivity {
                             Response<AuthModels.TemperHumilityResponse> response
                     ) {
 
-                        if (
-                                response.isSuccessful()
-                                        && response.body() != null
-                        ) {
+                        if (response.isSuccessful() && response.body() != null) {
 
-                            AuthModels.TemperHumilityResponse data =
-                                    response.body();
+                            AuthModels.TemperHumilityResponse data = response.body();
 
-                            Log.d(
-                                    "GrapeActivity",
-                                    "최신 온도: "
-                                            + data.temperature
-                                            + ", 습도: "
-                                            + data.humidity
-                            );
-
-                            /**
-                             * 수면 점수
-                             */
                             tvSleepScore.setText(
                                     data.sleepScore != null
                                             ? Math.round(data.sleepScore) + "점"
                                             : "--"
                             );
 
-                            /**
-                             * 온도
-                             */
                             tvCurrentTemp.setText(
-                                    String.format(
-                                            "%.1f°C",
-                                            data.temperature
-                                    )
+                                    String.format("%.1f°C", data.temperature)
                             );
 
-                            /**
-                             * 습도
-                             */
                             tvHumidity.setText(
-                                    String.format(
-                                            "%.0f%%",
-                                            data.humidity
-                                    )
+                                    String.format("%.0f%%", data.humidity)
                             );
 
-                            /**
-                             * 상태 메시지
-                             */
-                            if (
-                                    data.sleepScore != null
-                                            && data.sleepScore >= 80
-                            ) {
-
-                                tvStatusMsg.setText(
-                                        "수면 환경이 매우 좋아요 😴"
-                                );
-
-                            } else if (
-                                    data.sleepScore != null
-                                            && data.sleepScore >= 60
-                            ) {
-
-                                tvStatusMsg.setText(
-                                        "수면 환경이 안정적이에요 🙂"
-                                );
-
+                            if (data.noise != null) {
+                                tvNoise.setText(String.format("%.0f dB", data.noise+80));
                             } else {
+                                tvNoise.setText("-- dB");
+                            }
 
-                                tvStatusMsg.setText(
-                                        "수면 환경 점검이 필요해요 ⚠️"
-                                );
+                            if (data.sleepScore != null && data.sleepScore >= 80) {
+                                tvStatusMsg.setText("수면 환경이 매우 좋아요 😴");
+                            } else if (data.sleepScore != null && data.sleepScore >= 60) {
+                                tvStatusMsg.setText("수면 환경이 안정적이에요 🙂");
+                            } else {
+                                tvStatusMsg.setText("수면 환경 점검이 필요해요 ⚠️");
                             }
 
                         } else {
-
-                            Log.e(
-                                    "GrapeActivity",
-                                    "최신 데이터 응답 실패: "
-                                            + response.code()
-                            );
-
+                            Log.e("GrapeActivity", "최신 데이터 응답 실패: " + response.code());
                             tvCurrentTemp.setText("--°C");
                             tvHumidity.setText("--%");
                             tvSleepScore.setText("--");
+                            tvNoise.setText("-- dB");
                         }
                     }
 
@@ -239,147 +165,74 @@ public class GrapeActivity extends AppCompatActivity {
                             Call<AuthModels.TemperHumilityResponse> call,
                             Throwable t
                     ) {
-
-                        Log.e(
-                                "GrapeActivity",
-                                "최신 데이터 로드 실패: "
-                                        + t.getMessage()
-                        );
-
+                        Log.e("GrapeActivity", "최신 데이터 로드 실패: " + t.getMessage());
                         tvCurrentTemp.setText("--°C");
                         tvHumidity.setText("--%");
                         tvSleepScore.setText("--");
+                        tvNoise.setText("-- dB");
                     }
                 });
     }
 
-    /**
-     * 수면점수 그래프 UI
-     */
-    private void updateChartUI(
-            List<AuthModels.TemperHistoryResponse> dataList
-    ) {
+    private void updateChartUI(List<AuthModels.TemperHistoryResponse> dataList) {
 
         if (dataList.isEmpty()) return;
 
-        ArrayList<Entry> scoreEntries =
-                new ArrayList<>();
-
-        ArrayList<String> labels =
-                new ArrayList<>();
+        ArrayList<Entry> scoreEntries = new ArrayList<>();
+        ArrayList<String> labels = new ArrayList<>();
 
         for (int i = 0; i < dataList.size(); i++) {
 
-            AuthModels.TemperHistoryResponse data =
-                    dataList.get(i);
+            AuthModels.TemperHistoryResponse data = dataList.get(i);
 
-            /**
-             * 수면점수
-             */
-            float score =
-                    data.sleepScore != null
-                            ? data.sleepScore
-                            : 0;
+            float score = data.sleepScore != null ? data.sleepScore : 0;
 
-            scoreEntries.add(
-                    new Entry(i, score)
-            );
+            scoreEntries.add(new Entry(i, score));
 
-            /**
-             * 시간 라벨
-             */
-            String timeLabel = data.time;
-
-            if (
-                    timeLabel != null
-                            && timeLabel.length() > 16
-            ) {
-
-                timeLabel =
-                        timeLabel.substring(11, 16);
+            String timeLabel = "";
+            if (data.time != null) {
+                try {
+                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm", java.util.Locale.getDefault());
+                    sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                    java.util.Date date = sdf.parse(data.time.length() > 16 ? data.time.substring(0, 16) : data.time);
+                    java.text.SimpleDateFormat outSdf = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault());
+                    outSdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Seoul"));
+                    timeLabel = outSdf.format(date);
+                } catch (Exception e) {
+                    timeLabel = "";
+                }
             }
-
-            labels.add(
-                    timeLabel != null
-                            ? timeLabel
-                            : ""
-            );
+            labels.add(timeLabel);
         }
 
         configureChart(scoreEntries, labels);
     }
 
-    /**
-     * 차트 설정
-     */
-    private void configureChart(
-            ArrayList<Entry> entries,
-            ArrayList<String> labels
-    ) {
+    private void configureChart(ArrayList<Entry> entries, ArrayList<String> labels) {
 
-        LineDataSet dataSet =
-                new LineDataSet(
-                        entries,
-                        "수면 점수 변화"
-                );
+        LineDataSet dataSet = new LineDataSet(entries, "수면 점수 변화");
 
-        int themeColor =
-                Color.parseColor("#4A90E2");
+        int themeColor = Color.parseColor("#4A90E2");
 
         dataSet.setColor(themeColor);
-
         dataSet.setCircleColor(themeColor);
-
         dataSet.setLineWidth(3f);
-
         dataSet.setCircleRadius(4f);
-
         dataSet.setDrawValues(false);
+        dataSet.setMode(LineDataSet.Mode.CUBIC_BEZIER);
 
-        dataSet.setMode(
-                LineDataSet.Mode.CUBIC_BEZIER
-        );
-
-        LineData lineData =
-                new LineData(dataSet);
-
+        LineData lineData = new LineData(dataSet);
         sleepChart.setData(lineData);
 
-        /**
-         * X축
-         */
-        XAxis xAxis =
-                sleepChart.getXAxis();
-
-        xAxis.setPosition(
-                XAxis.XAxisPosition.BOTTOM
-        );
-
-        xAxis.setValueFormatter(
-                new IndexAxisValueFormatter(labels)
-        );
-
+        XAxis xAxis = sleepChart.getXAxis();
+        xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
+        xAxis.setValueFormatter(new IndexAxisValueFormatter(labels));
         xAxis.setGranularity(1f);
-
         xAxis.setLabelRotationAngle(-30);
 
-        /**
-         * 오른쪽 축 제거
-         */
-        sleepChart.getAxisRight()
-                .setEnabled(false);
-
-        /**
-         * 설명 제거
-         */
-        sleepChart.getDescription()
-                .setEnabled(false);
-
-        /**
-         * 애니메이션
-         */
+        sleepChart.getAxisRight().setEnabled(false);
+        sleepChart.getDescription().setEnabled(false);
         sleepChart.animateX(1000);
-
         sleepChart.invalidate();
     }
 }

@@ -72,6 +72,12 @@ class SoundAnalysisController {
         this.audioBuffer.length - 96000
       );
     }
+
+    const db = this.calculateDb(samples);
+    this.dbSamples.push(db);
+    if (this.dbSamples.length > 600) {
+        this.dbSamples.shift();
+    }
   }
 
   calculateDb(samples) {
@@ -98,7 +104,7 @@ class SoundAnalysisController {
       }
 
       this.startLoop();
-      this.startNoiseInterval();
+      //this.startNoiseInterval();
 
       res.json({
         success: true,
@@ -149,33 +155,33 @@ class SoundAnalysisController {
     }
   }
 
-  // =========================================================
-  // 10분마다 평균 dB 계산 후 temperhumilities에 저장
-  // =========================================================
-  startNoiseInterval() {
+  // // =========================================================
+  // // 10분마다 평균 dB 계산 후 temperhumilities에 저장
+  // // =========================================================
+  // startNoiseInterval() {
 
-    this.noiseIntervalId = setInterval(async () => {
+  //   this.noiseIntervalId = setInterval(async () => {
 
-      if (this.dbSamples.length === 0) return;
+  //     if (this.dbSamples.length === 0) return;
 
-      const avgDb =
-        this.dbSamples.reduce((a, b) => a + b, 0) /
-        this.dbSamples.length;
+  //     const avgDb =
+  //       this.dbSamples.reduce((a, b) => a + b, 0) /
+  //       this.dbSamples.length;
 
-      this.dbSamples = [];
+  //     this.dbSamples = [];
 
-      console.log(
-        `[SoundAnalysisController] 10분 평균 dB: ${avgDb.toFixed(2)}`
-      );
+  //     console.log(
+  //       `[SoundAnalysisController] 10분 평균 dB: ${avgDb.toFixed(2)}`
+  //     );
 
-      if (this.userId) {
-        await temhuController.saveNoiseData(this.userId, avgDb);
-      } else {
-        console.warn('[SoundAnalysisController] userId 없어서 noise 저장 불가');
-      }
+  //     if (this.userId) {
+  //       await temhuController.saveNoiseData(this.userId, avgDb);
+  //     } else {
+  //       console.warn('[SoundAnalysisController] userId 없어서 noise 저장 불가');
+  //     }
 
-    }, 10 * 60 * 1000);
-  }
+  //   }, 10 * 60 * 1000);
+  // }
 
   startLoop() {
 
@@ -190,8 +196,6 @@ class SoundAnalysisController {
         const samples = new Float32Array(this.audioBuffer);
 
         const db = this.calculateDb(samples);
-
-        this.dbSamples.push(db);
 
         if (db > -40) {
 

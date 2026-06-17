@@ -65,9 +65,6 @@ public class Schedule extends AppCompatActivity {
         createNotificationChannel();
         checkNotificationPermission();
 
-        // =========================
-        // local.properties 기반 서버 주소
-        // =========================
         String BASE_URL =
                 "http://"
                         + BuildConfig.SERVER_IP
@@ -87,12 +84,10 @@ public class Schedule extends AppCompatActivity {
         loadData();
 
         calendarView.setOnDateChangeListener((view, year, month, dayOfMonth) -> {
-
             String date =
                     year + "/" +
                             (month + 1) + "/" +
                             dayOfMonth;
-
             Log.d("Schedule", "선택된 날짜: " + date);
         });
     }
@@ -114,17 +109,9 @@ public class Schedule extends AppCompatActivity {
         Log.d("USER_CHECK", "저장된 username = " + realUserId);
 
         if (realUserId.isEmpty()) {
-
-            Log.e("USER_CHECK",
-                    "SharedPreferences 비어있음 → 테스트 유저 사용");
-
+            Log.e("USER_CHECK", "SharedPreferences 비어있음 → 테스트 유저 사용");
             realUserId = "test1";
-
-            Toast.makeText(
-                    this,
-                    "테스트 계정으로 실행됨",
-                    Toast.LENGTH_SHORT
-            ).show();
+            Toast.makeText(this, "테스트 계정으로 실행됨", Toast.LENGTH_SHORT).show();
         }
 
         apiService.getVaccineSchedule(realUserId)
@@ -135,15 +122,10 @@ public class Schedule extends AppCompatActivity {
                             @NonNull Call<List<AuthModels.VaccineResponse>> call,
                             @NonNull Response<List<AuthModels.VaccineResponse>> response
                     ) {
-
                         Log.d("API", "응답 코드 = " + response.code());
 
-                        if (response.isSuccessful()
-                                && response.body() != null) {
-
-                            Log.d("API",
-                                    "데이터 개수 = "
-                                            + response.body().size());
+                        if (response.isSuccessful() && response.body() != null) {
+                            Log.d("API", "데이터 개수 = " + response.body().size());
 
                             vaccineList.clear();
                             vaccineList.addAll(response.body());
@@ -151,15 +133,8 @@ public class Schedule extends AppCompatActivity {
                             updateUI();
 
                         } else {
-
-                            Log.e("API",
-                                    "응답 실패 or body null");
-
-                            Toast.makeText(
-                                    Schedule.this,
-                                    "데이터 없음",
-                                    Toast.LENGTH_SHORT
-                            ).show();
+                            Log.e("API", "응답 실패 or body null");
+                            Toast.makeText(Schedule.this, "데이터 없음", Toast.LENGTH_SHORT).show();
                         }
                     }
 
@@ -168,51 +143,38 @@ public class Schedule extends AppCompatActivity {
                             @NonNull Call<List<AuthModels.VaccineResponse>> call,
                             @NonNull Throwable t
                     ) {
-
-                        Log.e("API_ERROR",
-                                t.getMessage() != null
-                                        ? t.getMessage()
-                                        : "Unknown Error");
-
-                        Toast.makeText(
-                                Schedule.this,
-                                "서버 연결 실패",
-                                Toast.LENGTH_SHORT
-                        ).show();
+                        Log.e("API_ERROR", t.getMessage() != null ? t.getMessage() : "Unknown Error");
+                        Toast.makeText(Schedule.this, "서버 연결 실패", Toast.LENGTH_SHORT).show();
                     }
                 });
     }
 
     private void updateUI() {
 
+        // ✅ 접종 완료(dDay < 0) 제외, 90일 이내(dDay <= 90)만 필터링
+        List<AuthModels.VaccineResponse> filtered = new ArrayList<>();
+        for (AuthModels.VaccineResponse v : vaccineList) {
+            if (v.dDay >= 0 && v.dDay <= 90) {
+                filtered.add(v);
+            }
+        }
+
+        vaccineList.clear();
+        vaccineList.addAll(filtered);
         adapter.notifyDataSetChanged();
 
         if (!vaccineList.isEmpty()) {
 
-            AuthModels.VaccineResponse next =
-                    vaccineList.get(0);
+            AuthModels.VaccineResponse next = vaccineList.get(0);
 
             String statusText;
 
-            // =========================
-            // D-Day 상태 처리
-            // =========================
-            if (next.dDay < 0) {
-
-                statusText =
-                        "접종 완료\n"
-                                + "[" + next.name + "]\n"
-                                + next.dueDate;
-
-            } else if (next.dDay == 0) {
-
+            if (next.dDay == 0) {
                 statusText =
                         "오늘 접종 예정\n"
                                 + "[" + next.name + "]\n"
                                 + next.dueDate;
-
             } else {
-
                 statusText =
                         String.format(
                                 "D-%d [%s]\n%s 예정",
@@ -224,73 +186,39 @@ public class Schedule extends AppCompatActivity {
 
             tvNextVaccineDate.setText(statusText);
 
-            cardUpcomingSummary.setOnClickListener(
-                    v -> showEditDialog(next)
+            cardUpcomingSummary.setOnClickListener(v -> showEditDialog(next));
+
+            sendNotification(
+                    "접종 알림",
+                    "다가오는 접종 일정이 " + vaccineList.size() + "건 있습니다."
             );
-
-            // 예정 일정만 알림 보내기
-            if (next.dDay >= 0) {
-
-                sendNotification(
-                        "접종 알림",
-                        "다가오는 접종 일정이 "
-                                + vaccineList.size()
-                                + "건 있습니다."
-                );
-            }
 
         } else {
-
-            tvNextVaccineDate.setText(
-                    "현재 예정된 접종이 없습니다."
-            );
-
+            tvNextVaccineDate.setText("현재 예정된 접종이 없습니다.");
             cardUpcomingSummary.setOnClickListener(null);
         }
     }
 
-    private void showEditDialog(
-            AuthModels.VaccineResponse item
-    ) {
+    private void showEditDialog(AuthModels.VaccineResponse item) {
 
-        AlertDialog.Builder builder =
-                new AlertDialog.Builder(this);
-
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("접종 일정 수정");
 
-        final EditText input =
-                new EditText(this);
-
+        final EditText input = new EditText(this);
         input.setText(item.dueDate);
-
         builder.setView(input);
 
         builder.setPositiveButton(
                 "수정",
-                (dialog, id) ->
-                        updateVaccineOnServer(
-                                item.id,
-                                input.getText().toString()
-                        )
+                (dialog, id) -> updateVaccineOnServer(item.id, input.getText().toString())
         );
-
-        builder.setNegativeButton(
-                "취소",
-                null
-        );
-
+        builder.setNegativeButton("취소", null);
         builder.show();
     }
 
-    private void updateVaccineOnServer(
-            String vaccineId,
-            String newDate
-    ) {
+    private void updateVaccineOnServer(String vaccineId, String newDate) {
 
-        apiService.updateVaccine(
-                        vaccineId,
-                        new AuthModels.VaccineUpdate(newDate)
-                )
+        apiService.updateVaccine(vaccineId, new AuthModels.VaccineUpdate(newDate))
                 .enqueue(new Callback<Void>() {
 
                     @Override
@@ -298,24 +226,11 @@ public class Schedule extends AppCompatActivity {
                             @NonNull Call<Void> call,
                             @NonNull Response<Void> response
                     ) {
-
                         if (response.isSuccessful()) {
-
-                            Toast.makeText(
-                                    Schedule.this,
-                                    "수정 완료",
-                                    Toast.LENGTH_SHORT
-                            ).show();
-
+                            Toast.makeText(Schedule.this, "수정 완료", Toast.LENGTH_SHORT).show();
                             loadData();
-
                         } else {
-
-                            Toast.makeText(
-                                    Schedule.this,
-                                    "수정 실패",
-                                    Toast.LENGTH_SHORT
-                            ).show();
+                            Toast.makeText(Schedule.this, "수정 실패", Toast.LENGTH_SHORT).show();
                         }
                     }
 
@@ -324,12 +239,7 @@ public class Schedule extends AppCompatActivity {
                             @NonNull Call<Void> call,
                             @NonNull Throwable t
                     ) {
-
-                        Toast.makeText(
-                                Schedule.this,
-                                "서버 연결 실패",
-                                Toast.LENGTH_SHORT
-                        ).show();
+                        Toast.makeText(Schedule.this, "서버 연결 실패", Toast.LENGTH_SHORT).show();
                     }
                 });
     }
@@ -337,7 +247,6 @@ public class Schedule extends AppCompatActivity {
     private void createNotificationChannel() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-
             NotificationChannel channel =
                     new NotificationChannel(
                             CHANNEL_ID,
@@ -345,9 +254,7 @@ public class Schedule extends AppCompatActivity {
                             NotificationManager.IMPORTANCE_DEFAULT
                     );
 
-            NotificationManager manager =
-                    getSystemService(NotificationManager.class);
-
+            NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(channel);
             }
@@ -356,19 +263,14 @@ public class Schedule extends AppCompatActivity {
 
     private void checkNotificationPermission() {
 
-        if (Build.VERSION.SDK_INT
-                >= Build.VERSION_CODES.TIRAMISU) {
-
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(
                     this,
                     Manifest.permission.POST_NOTIFICATIONS
             ) != PackageManager.PERMISSION_GRANTED) {
-
                 ActivityCompat.requestPermissions(
                         this,
-                        new String[]{
-                                Manifest.permission.POST_NOTIFICATIONS
-                        },
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
                         101
                 );
             }
@@ -376,39 +278,24 @@ public class Schedule extends AppCompatActivity {
     }
 
     @SuppressLint("MissingPermission")
-    private void sendNotification(
-            String title,
-            String content
-    ) {
+    private void sendNotification(String title, String content) {
 
-        if (Build.VERSION.SDK_INT
-                >= Build.VERSION_CODES.TIRAMISU
-                &&
-                ContextCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED) {
-
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+        ) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
 
         NotificationCompat.Builder builder =
-                new NotificationCompat.Builder(
-                        this,
-                        CHANNEL_ID
-                )
-                        .setSmallIcon(
-                                android.R.drawable.ic_dialog_info
-                        )
+                new NotificationCompat.Builder(this, CHANNEL_ID)
+                        .setSmallIcon(android.R.drawable.ic_dialog_info)
                         .setContentTitle(title)
                         .setContentText(content)
-                        .setPriority(
-                                NotificationCompat.PRIORITY_DEFAULT
-                        )
+                        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                         .setAutoCancel(true);
 
-        NotificationManagerCompat
-                .from(this)
-                .notify(1, builder.build());
+        NotificationManagerCompat.from(this).notify(1, builder.build());
     }
 }

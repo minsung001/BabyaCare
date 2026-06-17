@@ -5,6 +5,7 @@ const smartThingsSchema = new mongoose.Schema({
     userEmail: { type: String, required: true },
     patToken: { type: String, required: true },
     deviceCount: { type: Number, default: 0 },
+    autoControl: { type: Boolean, default: false },
     updatedAt: { type: Date, default: Date.now }
 });
 

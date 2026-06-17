@@ -126,10 +126,11 @@ exports.getSleepScoreHistory = async (req, res) => {
     }
 
     try {
-
+        const since = new Date(Date.now() - 6 * 60 * 60 * 1000);
         const history = await TemperHumility.find({
             userId,
-            sleepScore: { $ne: null }
+            sleepScore: { $ne: null },
+            timestamp: { $gte: since }
         })
         .sort({ timestamp: 1 })
         .select("sleepScore timestamp");
@@ -155,9 +156,8 @@ exports.getHistoryData = exports.getSleepScoreHistory;
  * MQTT 온습도 수신 → DB 저장 + 즉시 수면점수 계산
  */
 exports.onData = async function(data) {
-
     try {
-
+        const soundAnalysisController = require('./soundAnalysisController');
         const { temperature, humidity } = data;
         const userId = this.userId;
         const io = this.app ? this.app.get('io') : null;
@@ -171,8 +171,11 @@ exports.onData = async function(data) {
         const latest = await TemperHumility.findOne({ userId })
             .sort({ timestamp: -1 });
 
-        const noise = latest?.noise ?? null;
-        const isCrying = latest?.cryDetected ?? false;
+        const noise = soundAnalysisController.dbSamples.length > 0
+            ? soundAnalysisController.dbSamples.reduce((a, b) => a + b, 0) / soundAnalysisController.dbSamples.length
+            : null;
+
+        const isCrying = false;
         const sleepScore = calcScore(temperature, humidity, noise, isCrying);
 
         const sensorData = new TemperHumility({
@@ -238,31 +241,31 @@ exports.saveCryEvent = async function(userId, cryProbability, io) {
     }
 };
 
-/**
- * 10분 평균 noise → DB 업데이트 + sleepScore 재계산
- */
-exports.saveNoiseData = async function(userId, avgDb) {
+// /**
+//  * 10분 평균 noise → DB 업데이트 + sleepScore 재계산
+//  */
+// exports.saveNoiseData = async function(userId, avgDb) {
 
-    try {
+//     try {
 
-        const latest = await TemperHumility.findOne({ userId })
-            .sort({ timestamp: -1 });
+//         const latest = await TemperHumility.findOne({ userId })
+//             .sort({ timestamp: -1 });
 
-        const temperature = latest?.temperature ?? null;
-        const humidity = latest?.humidity ?? null;
-        const isCrying = latest?.cryDetected ?? false;
-        const sleepScore = calcScore(temperature, humidity, avgDb, isCrying);
+//         const temperature = latest?.temperature ?? null;
+//         const humidity = latest?.humidity ?? null;
+//         const isCrying = latest?.cryDetected ?? false;
+//         const sleepScore = calcScore(temperature, humidity, avgDb, isCrying);
 
-        await TemperHumility.findByIdAndUpdate(latest._id, {
-            $set: {
-                noise: avgDb,
-                sleepScore
-            }
-        });
+//         await TemperHumility.findByIdAndUpdate(latest._id, {
+//             $set: {
+//                 noise: avgDb,
+//                 sleepScore
+//             }
+//         });
 
-        console.log(`[Noise 저장] userId=${userId}, avgDb=${avgDb.toFixed(2)}, sleepScore=${sleepScore}`);
+//         console.log(`[Noise 저장] userId=${userId}, avgDb=${avgDb.toFixed(2)}, sleepScore=${sleepScore}`);
 
-    } catch (error) {
-        console.error('[saveNoiseData 실패]', error.message);
-    }
-};
+//     } catch (error) {
+//         console.error('[saveNoiseData 실패]', error.message);
+//     }
+// };

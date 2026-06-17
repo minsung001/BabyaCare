@@ -8,9 +8,10 @@ let sleepModel = null;
 // ✅ 수면점수 계산 함수 (TemhuController에서 호출)
 const calcScore = (temp, humidity, noise, isCrying) => {
     let score = 100;
+    console.log(`[calcScore] temp=${temp}, humidity=${humidity}, noise=${noise}, isCrying=${isCrying}`);
     score -= 6 * Math.abs((temp ?? 23) - 23);
     score -= 0.5 * Math.abs((humidity ?? 50) - 50);
-    score -= 1 * Math.abs((noise ?? 40) - 40);
+    score -= 1 * Math.max(0, ((noise ?? -80) + 80) - 40);
     score -= 45 * (isCrying ? 1 : 0);
     return Math.max(0, Math.min(100, Math.round(score)));
 };

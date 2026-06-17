@@ -15,6 +15,7 @@ const soundAnalysisController = require('./src/controllers/soundAnalysisControll
 const videoController = require('./src/controllers/videoController');
 const temhuController = require('./src/controllers/TemhuController');
 const sleepController = require('./src/controllers/sleepController');
+const aiController = require('./src/controllers/aiController');
 
 const app = express();
 const server = http.createServer(app);
@@ -146,6 +147,9 @@ cron.schedule(CRON_DAILY_REPORT, () => {
   sleepController.generateDailyComprehensiveReport();
 });
 
+const { startAutoControlScheduler } = require('./src/controllers/smartThingsController');
+
+
 // =========================================================
 // SERVER START
 // =========================================================
@@ -167,6 +171,7 @@ server.listen(PORT, HOST, async () => {
 
     axios.post(`${BASE_URL}/api/video/start`).catch(() => {});
     axios.post(`${BASE_URL}/api/sound-analysis/start`).catch(() => {});
+    await aiController.generateDailyReport();
 
     console.log(`🚀 서버 가동 중: http://${HOST}:${PORT}`);
     console.log(`🔗 내부 BASE_URL: ${BASE_URL}`);

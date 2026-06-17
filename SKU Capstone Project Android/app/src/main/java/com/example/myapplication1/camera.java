@@ -32,7 +32,11 @@ public class camera extends AppCompatActivity {
         options.add("--clock-jitter=0");
         options.add("--clock-synchro=0");
         options.add("--video-filter=transform");
-        options.add("--transform-type=90");
+        options.add("--transform-type=90");    // 90도 회전
+        options.add("--avcodec-fast");         // SW 디코딩 속도 향상
+        options.add("--avcodec-skiploopfilter=2"); // 화질 감소 cpu 부하 감소
+        options.add("--drop-late-frames"); // 지연 누적 방지
+        options.add("--skip-frames"); // 버벅 거리면 건너 뛰기
 
         libVLC = new LibVLC(this, options);
         mediaPlayer = new MediaPlayer(libVLC);
@@ -41,7 +45,8 @@ public class camera extends AppCompatActivity {
         String streamUrl = BuildConfig.BASE_URL + "/stream/streamingfile.m3u8";
 
         Media media = new Media(libVLC, Uri.parse(streamUrl));
-        media.setHWDecoderEnabled(true, false);
+        // true면 회전이 안됨
+        media.setHWDecoderEnabled(false, false);
 
         mediaPlayer.setMedia(media);
         media.release();
@@ -57,10 +62,20 @@ public class camera extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        if (mediaPlayer != null) {
+            mediaPlayer.stop();
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
 
         if (mediaPlayer != null) {
+            mediaPlayer.stop();
+            mediaPlayer.detachViews();
             mediaPlayer.release();
             mediaPlayer = null;
         }

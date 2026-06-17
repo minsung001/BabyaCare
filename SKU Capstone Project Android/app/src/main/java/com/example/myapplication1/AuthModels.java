@@ -222,6 +222,9 @@ public class AuthModels {
         @SerializedName("humidity")
         public double humidity;
 
+        @SerializedName("noise")
+        public Double noise;
+
         @SerializedName("sleepScore")
         public Integer sleepScore;
 
@@ -246,7 +249,7 @@ public class AuthModels {
         @SerializedName("humidity")
         public double humidity;
 
-        @SerializedName("sleepScore")
+        @SerializedName("score")
         public Integer sleepScore;
     }
 
@@ -314,6 +317,12 @@ public class AuthModels {
 
         @SerializedName("label")
         public String label;
+
+        @SerializedName("category")
+        public String category;
+
+        @SerializedName("capabilities")
+        public List<String> capabilities;
     }
 
     public static class DeviceStatusResponse implements Serializable {
@@ -324,13 +333,40 @@ public class AuthModels {
         @SerializedName("deviceId")
         public String deviceId;
 
+        @SerializedName("switch")
+        public String switchValue;
+
+        @SerializedName("fanSpeed")
+        public Integer fanSpeed;
+
         @SerializedName("temperature")
-        public double temperature;
+        public Double temperature;
 
         @SerializedName("humidity")
-        public double humidity;
+        public Double humidity;
+
+        @SerializedName("coolingSetpoint")
+        public Double coolingSetpoint;
+    }
+    //자동환경제어 ON/OFF
+    public static class AutoControlRequest implements Serializable {
+
+        @SerializedName("autoControl")
+        public boolean autoControl;
+
+        public AutoControlRequest(boolean autoControl) {
+            this.autoControl = autoControl;
+        }
     }
 
+    public static class AutoControlResponse implements Serializable {
+
+        @SerializedName("ok")
+        public boolean ok;
+
+        @SerializedName("autoControl")
+        public boolean autoControl;
+    }
     public static class ControlRequest implements Serializable {
 
         @SerializedName("deviceId")
@@ -366,11 +402,20 @@ public class AuthModels {
         @SerializedName("message")
         public String message;
 
+        @SerializedName("switch")
+        public String switchValue;
+
+        @SerializedName("fanSpeed")
+        public Integer fanSpeed;
+
         @SerializedName("temperature")
-        public double temperature;
+        public Double temperature;
 
         @SerializedName("humidity")
-        public double humidity;
+        public Double humidity;
+
+        @SerializedName("coolingSetpoint")
+        public Double coolingSetpoint;
     }
 
     // =========================================================

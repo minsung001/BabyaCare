@@ -145,7 +145,17 @@ public interface ApiService {
             @Header("Authorization") String jwtToken,
             @Body AuthModels.ControlRequest body
     );
+    // 자동제어 기능
+    @POST("api/smartthings/auto-control")
+    Call<AuthModels.AutoControlResponse> setAutoControl(
+            @Header("Authorization") String jwtToken,
+            @Body AuthModels.AutoControlRequest body
+    );
 
+    @GET("api/smartthings/auto-control")
+    Call<AuthModels.AutoControlResponse> getAutoControl(
+            @Header("Authorization") String jwtToken
+    );
 
     // =========================================================
     // 5. AI 보고서

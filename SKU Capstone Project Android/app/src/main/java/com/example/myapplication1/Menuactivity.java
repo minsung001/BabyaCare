@@ -33,6 +33,10 @@ public class Menuactivity extends AppCompatActivity {
         ArrayList<String> options = new ArrayList<>();
         options.add("--network-caching=300");
         options.add("--no-audio");
+        options.add("--avcodec-fast");         // SW 디코딩 속도 향상
+        options.add("--avcodec-skiploopfilter=2"); // 화질 감소 cpu 부하 감소
+        options.add("--drop-late-frames"); // 지연 누적 방지
+        options.add("--skip-frames"); // 버벅 거리면 건너 뛰기
 
         libVLC = new LibVLC(this, options);
         mediaPlayer = new MediaPlayer(libVLC);
@@ -181,7 +185,16 @@ public class Menuactivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
-        if (mediaPlayer != null) {
+        if (mediaPlayer != null && libVLC != null) {
+            VLCVideoLayout mainPreview = findViewById(R.id.mainPreview);
+            mediaPlayer.detachViews();
+            mediaPlayer.attachViews(mainPreview, null, false, false);
+
+            String streamUrl = BuildConfig.BASE_URL + "/stream/streamingfile.m3u8";
+            Media media = new Media(libVLC, Uri.parse(streamUrl));
+            media.setHWDecoderEnabled(true, false);
+            mediaPlayer.setMedia(media);
+            media.release();
             mediaPlayer.play();
         }
     }
@@ -189,9 +202,8 @@ public class Menuactivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-
         if (mediaPlayer != null) {
-            mediaPlayer.pause();
+            mediaPlayer.stop();
         }
     }
 

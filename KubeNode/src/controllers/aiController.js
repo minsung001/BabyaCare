@@ -54,42 +54,53 @@ exports.generateDailyReport = async () => {
         const now = new Date();
         const last12h = new Date(Date.now() - 12 * 60 * 60 * 1000);
 
-        // ✅ 오늘 날짜 보고서 중복 생성 방지
-        const today = now.toISOString().slice(0, 10);
-        const existing = await AiReport.findOne({
-            reportType: "아침 수면 종합 리포트",
-            createdAt: { $gte: new Date(today) }
-        });
-        if (existing) {
-            return console.log("오늘 보고서 이미 존재함 → 생성 건너뜀");
-        }
+        // // ✅ 오늘 날짜 보고서 중복 생성 방지
+        // const today = now.toISOString().slice(0, 10);
+        // const existing = await AiReport.findOne({
+        //     reportType: "아침 수면 종합 리포트",
+        //     createdAt: { $gte: new Date(today) }
+        // });
+        // if (existing) {
+        //     return console.log("오늘 보고서 이미 존재함 → 생성 건너뜀");
+        // }
 
-        const nightData = await Sleep.find({ createdAt: { $gte: last12h } });
+        // const nightData = await Sleep.find({ createdAt: { $gte: last12h } });
 
-        if (nightData.length === 0) {
-            return console.log("보고서 생성할 데이터 없음");
-        }
+        // if (nightData.length === 0) {
+        //     return console.log("보고서 생성할 데이터 없음");
+        // }
 
-        const avgTemp = parseFloat((nightData.reduce((a, b) => a + b.temp, 0) / nightData.length).toFixed(1));
-        const avgHumidity = parseFloat((nightData.reduce((a, b) => a + b.humidity, 0) / nightData.length).toFixed(1));
-        const avgNoise = parseFloat((nightData.reduce((a, b) => a + b.noise, 0) / nightData.length).toFixed(1));
-        const avgScore = parseFloat((nightData.reduce((a, b) => a + (b.actualScore || 0), 0) / nightData.length).toFixed(1));
-        const cryingCount = nightData.filter(d => d.isCrying === 1).length;
+        // const avgTemp = parseFloat((nightData.reduce((a, b) => a + b.temp, 0) / nightData.length).toFixed(1));
+        // const avgHumidity = parseFloat((nightData.reduce((a, b) => a + b.humidity, 0) / nightData.length).toFixed(1));
+        // const avgNoise = parseFloat((nightData.reduce((a, b) => a + b.noise, 0) / nightData.length).toFixed(1));
+        // const avgScore = parseFloat((nightData.reduce((a, b) => a + (b.actualScore || 0), 0) / nightData.length).toFixed(1));
+        // const cryingCount = nightData.filter(d => d.isCrying === 1).length;
 
-        const periodStart = last12h.toISOString().slice(0, 16).replace('T', ' ');
-        const periodEnd = now.toISOString().slice(0, 16).replace('T', ' ');
+        // const periodStart = last12h.toISOString().slice(0, 16).replace('T', ' ');
+        // const periodEnd = now.toISOString().slice(0, 16).replace('T', ' ');
 
+        // const data = {
+        //     reportType: "아침 수면 종합 리포트",
+        //     periodStart,
+        //     periodEnd,
+        //     avgTemp,
+        //     avgHumidity,
+        //     avgNoise,
+        //     avgScore,
+        //     cryingCount,
+        //     dataCount: nightData.length
+        // };
         const data = {
             reportType: "아침 수면 종합 리포트",
-            periodStart,
-            periodEnd,
-            avgTemp,
-            avgHumidity,
-            avgNoise,
-            avgScore,
-            cryingCount,
-            dataCount: nightData.length
-        };
+            periodStart: "2025-06-08 20:00",
+            periodEnd: "2025-06-09 08:00",
+            avgTemp: 20.0,
+            avgHumidity: 60.0,
+            avgNoise: 50.0,
+            avgScore: 66.0,
+            cryingCount: 10,
+            dataCount: 720
+        }; // 임시 데이터
 
         const reportText = await generateAiReport(data);
 
