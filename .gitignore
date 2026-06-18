@@ -54,4 +54,5 @@ dkms.conf
 # debug information files
 *.dwo
 .env
-dbKey.json
+dbKey.json"flaskserver/models/baby_cry_onnx/Quantization_v3.onnx" 
+"flaskserver/models/baby_cry_onnx/Quantization_v3.onnx" 
